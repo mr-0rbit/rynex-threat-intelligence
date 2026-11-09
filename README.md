@@ -4,7 +4,7 @@
 
 A centralized, continuously updated Cyber Threat Intelligence platform for Rynex Technologies. RTIP aggregates intelligence from legitimate, publicly accessible free/community-tier sources, correlates it, scores confidence transparently, and generates deduplicated, actionable alerts.
 
-> **Status: Phases 1–8 core complete, live-verified.** Real intelligence flows from CISA KEV (1,700+ vulnerabilities), Ransomware.live (breach claims), and 6 security news RSS feeds. Full React dashboard operational. See [docs/ROADMAP.md](docs/ROADMAP.md).
+> **Status: Phases 1–8 core complete, live-verified.** Real intelligence flows from CISA KEV (1,700+ vulnerabilities), Ransomware.live (breach claims), and 6 security news RSS feeds. Full React dashboard operational.
 
 ## What runs today
 
