@@ -54,7 +54,7 @@ export function Alerts() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-white">Alert Management</h1>
-          <p className="text-xs text-slate-500">{total.toLocaleString()} alerts matching current filters</p>
+          <p className="text-xs text-ink-400">{total.toLocaleString()} alerts matching current filters</p>
         </div>
         <div className="flex gap-2">
           <select
@@ -63,7 +63,7 @@ export function Alerts() {
               setSeverity(e.target.value);
               setPage(0);
             }}
-            className="rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 text-xs text-slate-300"
+            className="rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200"
           >
             {SEVERITIES.map((s) => (
               <option key={s} value={s}>{s ? s.toUpperCase() : "All severities"}</option>
@@ -75,7 +75,7 @@ export function Alerts() {
               setStatus(e.target.value);
               setPage(0);
             }}
-            className="rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 text-xs text-slate-300"
+            className="rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200"
           >
             {STATUSES.map((s) => (
               <option key={s} value={s}>{s ? s.replace("_", " ") : "All statuses"}</option>
@@ -99,15 +99,15 @@ export function Alerts() {
                   <div className="flex items-center gap-2">
                     <SeverityBadge severity={a.severity} />
                     <StatusBadge status={a.status} />
-                    <span className="text-[10px] uppercase tracking-wider text-slate-600">{a.category.replace(/_/g, " ")}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-ink-500">{a.category.replace(/_/g, " ")}</span>
                     {a.occurrence_count > 1 && (
-                      <span className="rounded bg-rynex-border/50 px-1.5 py-0.5 text-[10px] text-slate-400">
+                      <span className="rounded bg-ink-700/50 px-1.5 py-0.5 text-[10px] text-ink-300">
                         ×{a.occurrence_count} evidence updates
                       </span>
                     )}
                   </div>
-                  <p className="mt-1.5 text-sm font-medium text-slate-100">{a.title}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">
+                  <p className="mt-1.5 text-sm font-medium text-ink-100">{a.title}</p>
+                  <p className="mt-0.5 text-[11px] text-ink-400">
                     Detected {timeAgo(a.detected_at)} · published {timeAgo(a.first_published_at)} · confidence{" "}
                     {(a.confidence * 100).toFixed(0)}%
                   </p>
@@ -115,7 +115,7 @@ export function Alerts() {
                 <select
                   value={a.status}
                   onChange={(e) => updateStatus(a.id, e.target.value)}
-                  className="rounded border border-rynex-border bg-rynex-bg px-2 py-1 text-xs text-slate-300"
+                  className="rounded border border-ink-600 bg-ink-950 px-2 py-1 text-xs text-ink-200"
                 >
                   {STATUSES.filter(Boolean).map((s) => (
                     <option key={s} value={s}>{s.replace("_", " ")}</option>
@@ -123,20 +123,20 @@ export function Alerts() {
                 </select>
               </div>
               {expanded === a.id && (
-                <div className="mt-3 space-y-2 border-t border-rynex-border pt-3 text-xs text-slate-400">
+                <div className="mt-3 space-y-2 border-t border-ink-600 pt-3 text-xs text-ink-300">
                   {a.recommended_action && (
                     <p>
-                      <span className="font-medium text-rynex-accent">Recommended action:</span> {a.recommended_action}
+                      <span className="font-medium text-accent">Recommended action:</span> {a.recommended_action}
                     </p>
                   )}
                   {a.evidence_sources?.length > 0 && (
                     <p>
-                      <span className="font-medium text-slate-300">Evidence:</span>{" "}
+                      <span className="font-medium text-ink-200">Evidence:</span>{" "}
                       {a.evidence_sources.map((s, i) => (
                         <span key={i}>
                           {i > 0 && ", "}
                           {s.url ? (
-                            <a href={s.url} target="_blank" rel="noreferrer noopener" className="text-rynex-accent hover:underline">
+                            <a href={s.url} target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">
                               {s.source_slug}
                             </a>
                           ) : (
@@ -150,20 +150,20 @@ export function Alerts() {
               )}
             </Card>
           ))}
-          <div className="flex items-center justify-between text-xs text-slate-500">
+          <div className="flex items-center justify-between text-xs text-ink-400">
             <span>Page {page + 1}</span>
             <div className="flex gap-2">
               <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="rounded border border-rynex-border px-3 py-1 disabled:opacity-30"
+                className="rounded border border-ink-600 px-3 py-1 disabled:opacity-30"
               >
                 Previous
               </button>
               <button
                 disabled={(page + 1) * 25 >= total}
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded border border-rynex-border px-3 py-1 disabled:opacity-30"
+                className="rounded border border-ink-600 px-3 py-1 disabled:opacity-30"
               >
                 Next
               </button>

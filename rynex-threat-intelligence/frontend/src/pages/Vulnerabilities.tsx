@@ -47,7 +47,7 @@ export function Vulnerabilities() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-white">Vulnerability Intelligence</h1>
-          <p className="text-xs text-slate-500">{total.toLocaleString()} vulnerabilities tracked</p>
+          <p className="text-xs text-ink-400">{total.toLocaleString()} vulnerabilities tracked</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <input
@@ -57,14 +57,14 @@ export function Vulnerabilities() {
               setPage(0);
             }}
             placeholder="CVE ID or product…"
-            className="w-48 rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 text-xs text-slate-300 placeholder:text-slate-600"
+            className="w-48 rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200 placeholder:text-ink-500"
           />
-          <select value={kev} onChange={(e) => { setKev(e.target.value); setPage(0); }} className="rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 text-xs text-slate-300">
+          <select value={kev} onChange={(e) => { setKev(e.target.value); setPage(0); }} className="rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200">
             <option value="">All CVEs</option>
             <option value="true">CISA KEV only</option>
             <option value="false">Not in KEV</option>
           </select>
-          <select value={severity} onChange={(e) => { setSeverity(e.target.value); setPage(0); }} className="rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 text-xs text-slate-300">
+          <select value={severity} onChange={(e) => { setSeverity(e.target.value); setPage(0); }} className="rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200">
             <option value="">All severities</option>
             {["critical", "high", "medium", "low"].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -79,7 +79,7 @@ export function Vulnerabilities() {
         <Card className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-rynex-border text-[11px] uppercase tracking-wider text-slate-500">
+              <tr className="border-b border-ink-600 text-[11px] uppercase tracking-wider text-ink-400">
                 <th className="px-4 py-2.5">CVE</th>
                 <th className="px-4 py-2.5">Severity</th>
                 <th className="px-4 py-2.5">CVSS</th>
@@ -89,28 +89,28 @@ export function Vulnerabilities() {
                 <th className="px-4 py-2.5">Product</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-rynex-border">
+            <tbody className="divide-y divide-ink-600">
               {items.map((v) => (
-                <tr key={v.cve_id} className="hover:bg-rynex-border/20">
+                <tr key={v.cve_id} className="hover:bg-ink-700/20">
                   <td className="px-4 py-2.5 font-mono text-xs">
-                    <a href={`https://nvd.nist.gov/vuln/detail/${v.cve_id}`} target="_blank" rel="noreferrer noopener" className="text-rynex-accent hover:underline">
+                    <a href={`https://nvd.nist.gov/vuln/detail/${v.cve_id}`} target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">
                       {v.cve_id}
                     </a>
                   </td>
                   <td className="px-4 py-2.5"><SeverityBadge severity={sevOf(v)} /></td>
-                  <td className="px-4 py-2.5 tabular-nums text-slate-300">{v.cvss_base_score ?? "—"}</td>
-                  <td className="px-4 py-2.5 tabular-nums text-slate-500">{v.epss_score != null ? `${(v.epss_score * 100).toFixed(1)}%` : "—"}</td>
+                  <td className="px-4 py-2.5 tabular-nums text-ink-200">{v.cvss_base_score ?? "—"}</td>
+                  <td className="px-4 py-2.5 tabular-nums text-ink-400">{v.epss_score != null ? `${(v.epss_score * 100).toFixed(1)}%` : "—"}</td>
                   <td className="px-4 py-2.5">
                     {v.in_kev ? (
-                      <span className="flex items-center gap-1.5 text-[11px] text-orange-400">
-                        Exploited{v.known_ransomware_use && <span className="text-red-400">· ransomware</span>}
+                      <span className="flex items-center gap-1.5 text-[11px] text-accent">
+                        Exploited{v.known_ransomware_use && <span className="text-white">· ransomware</span>}
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-600">—</span>
+                      <span className="text-xs text-ink-500">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-slate-500">{timeAgo(v.published_at)}</td>
-                  <td className="max-w-56 truncate px-4 py-2.5 text-xs text-slate-400">{v.title ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-xs text-ink-400">{timeAgo(v.published_at)}</td>
+                  <td className="max-w-56 truncate px-4 py-2.5 text-xs text-ink-300">{v.title ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -124,11 +124,11 @@ export function Vulnerabilities() {
 
 export function Pagination({ page, setPage, total, pageSize }: { page: number; setPage: (fn: (p: number) => number) => void; total: number; pageSize: number }) {
   return (
-    <div className="flex items-center justify-between text-xs text-slate-500">
+    <div className="flex items-center justify-between text-xs text-ink-400">
       <span>Page {page + 1} of {Math.max(1, Math.ceil(total / pageSize))}</span>
       <div className="flex gap-2">
-        <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} className="rounded border border-rynex-border px-3 py-1 disabled:opacity-30">Previous</button>
-        <button disabled={(page + 1) * pageSize >= total} onClick={() => setPage((p) => p + 1)} className="rounded border border-rynex-border px-3 py-1 disabled:opacity-30">Next</button>
+        <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} className="rounded border border-ink-600 px-3 py-1 disabled:opacity-30">Previous</button>
+        <button disabled={(page + 1) * pageSize >= total} onClick={() => setPage((p) => p + 1)} className="rounded border border-ink-600 px-3 py-1 disabled:opacity-30">Next</button>
       </div>
     </div>
   );

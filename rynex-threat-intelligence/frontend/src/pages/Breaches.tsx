@@ -50,8 +50,8 @@ export function Breaches() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-white">Data Breach Intelligence</h1>
-          <p className="text-xs text-slate-500">
-            {total.toLocaleString()} incidents · ransomware group claims are marked <span className="text-orange-400">claimed</span> until corroborated
+          <p className="text-xs text-ink-400">
+            {total.toLocaleString()} incidents · ransomware group claims are marked <span className="text-accent">claimed</span> until corroborated
           </p>
         </div>
         <div className="flex gap-2">
@@ -59,9 +59,9 @@ export function Breaches() {
             value={q}
             onChange={(e) => { setQ(e.target.value); setPage(0); }}
             placeholder="Organization name…"
-            className="w-48 rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 text-xs text-slate-300 placeholder:text-slate-600"
+            className="w-48 rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200 placeholder:text-ink-500"
           />
-          <select value={verification} onChange={(e) => { setVerification(e.target.value); setPage(0); }} className="rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 text-xs text-slate-300">
+          <select value={verification} onChange={(e) => { setVerification(e.target.value); setPage(0); }} className="rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200">
             <option value="">All statuses</option>
             {["confirmed", "reported", "claimed", "unverified", "disputed"].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -79,30 +79,30 @@ export function Breaches() {
               <div className="flex items-start justify-between gap-4">
                 <button className="min-w-0 flex-1 text-left" onClick={() => setExpanded(expanded === b.id ? null : b.id)}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-100">{b.organization_name}</span>
+                    <span className="text-sm font-semibold text-ink-100">{b.organization_name}</span>
                     <StatusBadge status={b.verification_status} />
                     {b.threat_actor_name && (
-                      <span className="flex items-center gap-1 rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-300">
+                      <span className="flex items-center gap-1 rounded border border-ink-500 bg-ink-700 px-1.5 py-0.5 text-[10px] text-ink-100">
                         <ShieldAlert className="h-3 w-3" /> {b.threat_actor_name}
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-[11px] text-slate-500">
+                  <p className="mt-1 text-[11px] text-ink-400">
                     {b.industry || "industry unknown"} · {b.country || "region unknown"} · published {timeAgo(b.published_at)} · confidence {(b.confidence * 100).toFixed(0)}% · via {b.source_slug}
                   </p>
                 </button>
                 {b.source_url && (
-                  <a href={b.source_url} target="_blank" rel="noreferrer noopener" className="text-slate-500 hover:text-rynex-accent" title="Original source">
+                  <a href={b.source_url} target="_blank" rel="noreferrer noopener" className="text-ink-400 hover:text-accent" title="Original source">
                     <ExternalLink className="h-4 w-4" />
                   </a>
                 )}
               </div>
               {expanded === b.id && (
-                <div className="mt-3 space-y-1.5 border-t border-rynex-border pt-3 text-xs text-slate-400">
-                  {b.organization_domain && <p><span className="text-slate-300">Domain:</span> {b.organization_domain}</p>}
-                  {b.claimed_data_types?.filter(Boolean).map((d, i) => <p key={i}><span className="text-slate-300">Claimed:</span> {d}</p>)}
+                <div className="mt-3 space-y-1.5 border-t border-ink-600 pt-3 text-xs text-ink-300">
+                  {b.organization_domain && <p><span className="text-ink-200">Domain:</span> {b.organization_domain}</p>}
+                  {b.claimed_data_types?.filter(Boolean).map((d, i) => <p key={i}><span className="text-ink-200">Claimed:</span> {d}</p>)}
                   {b.confidence_reasons?.reasons?.length && (
-                    <p><span className="text-slate-300">Why this confidence:</span> {b.confidence_reasons.reasons.join("; ")}</p>
+                    <p><span className="text-ink-200">Why this confidence:</span> {b.confidence_reasons.reasons.join("; ")}</p>
                   )}
                 </div>
               )}

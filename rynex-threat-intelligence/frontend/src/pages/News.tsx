@@ -43,20 +43,20 @@ export function News() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-white">Cybersecurity News</h1>
-          <p className="text-xs text-slate-500">{total.toLocaleString()} articles from publisher RSS feeds</p>
+          <p className="text-xs text-ink-400">{total.toLocaleString()} articles from publisher RSS feeds</p>
         </div>
         <div className="flex gap-2">
           <input
             value={q}
             onChange={(e) => { setQ(e.target.value); setPage(0); }}
             placeholder="Search headlines…"
-            className="w-52 rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 text-xs text-slate-300 placeholder:text-slate-600"
+            className="w-52 rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200 placeholder:text-ink-500"
           />
           <input
             value={publisher}
             onChange={(e) => { setPublisher(e.target.value); setPage(0); }}
             placeholder="Publisher…"
-            className="w-40 rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 text-xs text-slate-300 placeholder:text-slate-600"
+            className="w-40 rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200 placeholder:text-ink-500"
           />
         </div>
       </div>
@@ -68,18 +68,18 @@ export function News() {
       ) : (
         <div className="space-y-2">
           {items.map((a) => (
-            <Card key={a.url} className="p-4 hover:border-rynex-accent/30">
+            <Card key={a.url} className="p-4 hover:border-accent/30">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <a href={a.url} target="_blank" rel="noreferrer noopener" className="text-sm font-medium text-slate-100 hover:text-rynex-accent">
+                  <a href={a.url} target="_blank" rel="noreferrer noopener" className="text-sm font-medium text-ink-100 hover:text-accent">
                     {a.headline}
                   </a>
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">{a.summary}</p>
-                  <p className="mt-1.5 text-[11px] text-slate-600">
+                  <p className="mt-1 line-clamp-2 text-xs text-ink-400">{a.summary}</p>
+                  <p className="mt-1.5 text-[11px] text-ink-500">
                     {a.publisher} · published {timeAgo(a.published_at)} · collected {timeAgo(a.collected_at)}
                   </p>
                 </div>
-                <a href={a.url} target="_blank" rel="noreferrer noopener" className="shrink-0 text-slate-500 hover:text-rynex-accent">
+                <a href={a.url} target="_blank" rel="noreferrer noopener" className="shrink-0 text-ink-400 hover:text-accent">
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </div>

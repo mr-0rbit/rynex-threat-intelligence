@@ -29,6 +29,7 @@ class IngestionService:
                     "vulnerability": self._store_vulnerability,
                     "breach": self._store_breach,
                     "news": self._store_news,
+                    "actor": self._store_actor,
                 }
                 handler = handlers.get(record.kind)
                 if handler is None:
@@ -224,6 +225,35 @@ class IngestionService:
                 },
             )
         )
+        return True
+
+    async def _store_actor(self, record) -> bool:
+        from app.models import ThreatActor
+
+        d = record.data
+        existing = (
+            await self.db.execute(select(ThreatActor).where(ThreatActor.name == d["name"]))
+        ).scalar_one_or_none()
+        if existing:
+            if d.get("description") and not existing.description:
+                existing.description = d["description"]
+            return False
+        actor = ThreatActor(
+            name=d["name"],
+            aliases=d.get("aliases"),
+            motivations=d.get("motivations"),
+            targeted_industries=d.get("targeted_industries"),
+            targeted_regions=d.get("targeted_regions"),
+            associated_malware=d.get("associated_malware"),
+            attack_techniques=d.get("attack_techniques"),
+            first_observed_at=d.get("_first_seen"),
+            last_observed_at=d.get("_last_seen"),
+            description=d.get("description"),
+            attribution_status=d.get("attribution_status", "unverified"),
+            source_slug=d.get("source_slug"),
+            source_url=d.get("source_url"),
+        )
+        self.db.add(actor)
         return True
 
     async def _store_news(self, record) -> bool:

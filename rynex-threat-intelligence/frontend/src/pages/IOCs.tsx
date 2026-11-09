@@ -47,16 +47,16 @@ export function IOCs() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-white">Indicator Intelligence</h1>
-          <p className="text-xs text-slate-500">{total.toLocaleString()} indicators · deduplicated and normalized</p>
+          <p className="text-xs text-ink-400">{total.toLocaleString()} indicators · deduplicated and normalized</p>
         </div>
         <div className="flex gap-2">
           <input
             value={q}
             onChange={(e) => { setQ(e.target.value); setPage(0); }}
             placeholder="Search indicator value…"
-            className="w-52 rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 font-mono text-xs text-slate-300 placeholder:text-slate-600"
+            className="w-52 rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 font-mono text-xs text-ink-200 placeholder:text-ink-500"
           />
-          <select value={type} onChange={(e) => { setType(e.target.value); setPage(0); }} className="rounded-md border border-rynex-border bg-rynex-panel px-2.5 py-1.5 text-xs text-slate-300">
+          <select value={type} onChange={(e) => { setType(e.target.value); setPage(0); }} className="rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200">
             {TYPES.map((t) => <option key={t} value={t}>{t ? t.toUpperCase() : "All types"}</option>)}
           </select>
         </div>
@@ -70,7 +70,7 @@ export function IOCs() {
         <Card className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-rynex-border text-[11px] uppercase tracking-wider text-slate-500">
+              <tr className="border-b border-ink-600 text-[11px] uppercase tracking-wider text-ink-400">
                 <th className="px-4 py-2.5">Indicator</th>
                 <th className="px-4 py-2.5">Type</th>
                 <th className="px-4 py-2.5">Malware</th>
@@ -79,22 +79,22 @@ export function IOCs() {
                 <th className="px-4 py-2.5">Last seen</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-rynex-border">
+            <tbody className="divide-y divide-ink-600">
               {items.map((i) => (
-                <tr key={i.id} className="hover:bg-rynex-border/20">
-                  <td className="max-w-96 truncate px-4 py-2.5 font-mono text-xs text-slate-200" title={i.value}>{i.value}</td>
-                  <td className="px-4 py-2.5 text-xs uppercase text-slate-400">{i.type}</td>
-                  <td className="px-4 py-2.5 text-xs text-slate-400">{i.malware_family ?? "—"}</td>
+                <tr key={i.id} className="hover:bg-ink-700/20">
+                  <td className="max-w-96 truncate px-4 py-2.5 font-mono text-xs text-ink-100" title={i.value}>{i.value}</td>
+                  <td className="px-4 py-2.5 text-xs uppercase text-ink-300">{i.type}</td>
+                  <td className="px-4 py-2.5 text-xs text-ink-300">{i.malware_family ?? "—"}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-rynex-border">
-                        <div className="h-full rounded-full bg-rynex-accent" style={{ width: `${i.confidence * 100}%` }} />
+                      <div className="h-1.5 w-16 overflow-hidden rounded-none bg-ink-700">
+                        <div className="h-full rounded-none bg-accent" style={{ width: `${i.confidence * 100}%` }} />
                       </div>
-                      <span className="text-[11px] tabular-nums text-slate-500">{(i.confidence * 100).toFixed(0)}%</span>
+                      <span className="text-[11px] tabular-nums text-ink-400">{(i.confidence * 100).toFixed(0)}%</span>
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-xs text-slate-500">{i.source_slug}</td>
-                  <td className="px-4 py-2.5 text-xs text-slate-500">{timeAgo(i.last_seen_at)}</td>
+                  <td className="px-4 py-2.5 text-xs text-ink-400">{i.source_slug}</td>
+                  <td className="px-4 py-2.5 text-xs text-ink-400">{timeAgo(i.last_seen_at)}</td>
                 </tr>
               ))}
             </tbody>

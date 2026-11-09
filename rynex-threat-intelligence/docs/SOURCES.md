@@ -10,6 +10,7 @@ commercial redistribution of source data.**
 |---|---|---|---|---|
 | CISA KEV | Vulnerability / exploitation | none | Permitted (public domain) | 1,769 entries ingested live |
 | Ransomware.live | Breach claims | optional key | **Verify before commercial use** | 100 victim claims ingested; stored as `claimed` only |
+| Ransomware.live groups API | Dark web group profiles (metadata) | optional key | **Verify before commercial use** | 419 leak-site operator profiles ingested live; **metadata only — no onion connectivity exists in RTIP** |
 | News RSS ×6 (The Hacker News, BleepingComputer, SecurityWeek, Dark Reading, KrebsOnSecurity, CISA advisories) | News | none | Attribution required; headline+summary+link only | 165 articles ingested live |
 
 ## Implemented

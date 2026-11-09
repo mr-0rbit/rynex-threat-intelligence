@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 body {
-  @apply bg-rynex-bg text-slate-200 antialiased;
+  @apply bg-ink-950 text-ink-100 antialiased;
+  font-feature-settings: "tnum" 1, "ss01" 1;
 }
 
 ::-webkit-scrollbar {
@@ -11,9 +12,13 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0e14;
+  background: #000000;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 4px;
+  background: #232327;
+  border-radius: 0;
+}
+
+input, select, button {
+  border-radius: 2px;
 }

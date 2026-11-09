@@ -11,6 +11,7 @@ import { IOCs } from "./pages/IOCs";
 import { News } from "./pages/News";
 import { Sources } from "./pages/Sources";
 import { SearchResults } from "./pages/Search";
+import { DarkWeb } from "./pages/DarkWeb";
 
 function ProtectedApp() {
   const { user, loading } = useAuth();
@@ -22,6 +23,7 @@ function ProtectedApp() {
         <Route index element={<Dashboard />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/breaches" element={<Breaches />} />
+        <Route path="/darkweb" element={<DarkWeb />} />
         <Route path="/vulnerabilities" element={<Vulnerabilities />} />
         <Route path="/iocs" element={<IOCs />} />
         <Route path="/news" element={<News />} />

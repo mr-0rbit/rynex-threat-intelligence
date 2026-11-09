@@ -53,4 +53,9 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute="*/10"),
         "args": ("security-news-rss",),
     },
+    "collect-darkweb-groups": {
+        "task": "rtip.collect_one",
+        "schedule": crontab(minute="40 */12 * * *"),
+        "args": ("darkweb-groups",),
+    },
 }

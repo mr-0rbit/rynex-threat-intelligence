@@ -13,16 +13,15 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api/client";
-import { Card, CardHeader, EmptyState, SeverityBadge, Spinner, StatCard, timeAgo } from "../components/ui";
+import { Card, CardHeader, EmptyState, SeverityBadge, Spinner, StatCard, timeAgo, ACCENT, ACCENT_STEPS } from "../components/ui";
 
-const ACCENT = "#00D4FF";
-const CHART_COLORS = ["#00D4FF", "#0EA5E9", "#6366F1", "#8B5CF6", "#D946EF", "#F43F5E", "#F97316", "#EAB308", "#22C55E"];
+// Strict palette: accent hue with opacity steps + white/neutral tones only.
 const SEVERITY_COLORS: Record<string, string> = {
-  critical: "#EF4444",
-  high: "#F97316",
-  medium: "#EAB308",
-  low: "#0EA5E9",
-  informational: "#64748B",
+  critical: "#FFFFFF",
+  high: "#00D4FF",
+  medium: "rgba(0,212,255,0.40)",
+  low: "rgba(255,255,255,0.28)",
+  informational: "#333338",
 };
 
 interface Overview {
@@ -56,12 +55,12 @@ function BarBlock({ title, data, color = ACCENT }: { title: string; data: { labe
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-              <CartesianGrid stroke="#1E293B" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: "#64748B", fontSize: 10 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fill: "#64748B", fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <CartesianGrid stroke="#232327" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: "#6B6B72", fontSize: 10 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fill: "#6B6B72", fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip
-                cursor={{ fill: "#1E293B33" }}
-                contentStyle={{ background: "#111722", border: "1px solid #1E293B", borderRadius: 6, fontSize: 12 }}
+                cursor={{ fill: "rgba(0,212,255,0.06)" }}
+                contentStyle={{ background: "#111113", border: "1px solid #232327", borderRadius: 2, fontSize: 12 }}
               />
               <Bar dataKey="value" fill={color} radius={[3, 3, 0, 0]} />
             </BarChart>
@@ -94,12 +93,12 @@ function PieBlock({ title, data, colorMap }: { title: string; data: { label: str
                 {data.map((entry, i) => (
                   <Cell
                     key={i}
-                    fill={colorMap?.[entry.label] ?? CHART_COLORS[i % CHART_COLORS.length]}
+                    fill={colorMap?.[entry.label] ?? ACCENT_STEPS[i % ACCENT_STEPS.length]}
                   />
                 ))}
               </Pie>
-              <Legend wrapperStyle={{ fontSize: 11, color: "#94A3B8" }} />
-              <Tooltip contentStyle={{ background: "#111722", border: "1px solid #1E293B", borderRadius: 6, fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#9C9CA4" }} />
+              <Tooltip contentStyle={{ background: "#111113", border: "1px solid #232327", borderRadius: 2, fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
         )}
@@ -129,7 +128,7 @@ export function Dashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold text-white">Intelligence Overview</h1>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-400">
           All figures computed from live database records · generated {timeAgo(overview.generated_at as unknown as string)}
         </p>
       </div>
@@ -150,25 +149,25 @@ export function Dashboard() {
         <PieBlock title="IOC Type Distribution" data={charts.ioc_types} />
         <BarBlock title="Source Contribution" data={charts.source_contribution} />
         <PieBlock title="Breaches by Verification Status" data={charts.breaches_by_verification} />
-        <BarBlock title="News Volume (14 days)" data={charts.news_over_time} color="#6366F1" />
-        <BarBlock title="Articles by Publisher" data={charts.news_by_publisher} color="#6366F1" />
+        <BarBlock title="News Volume (14 days)" data={charts.news_over_time} color="rgba(255,255,255,0.55)" />
+        <BarBlock title="Articles by Publisher" data={charts.news_by_publisher} color="rgba(255,255,255,0.55)" />
       </div>
 
       <Card>
         <CardHeader title="Latest Cybersecurity News" subtitle="Aggregated from publisher RSS feeds" />
-        <ul className="divide-y divide-rynex-border">
+        <ul className="divide-y divide-ink-600">
           {overview.latest_news.map((n) => (
-            <li key={n.url} className="flex items-center justify-between gap-4 px-4 py-2.5 hover:bg-rynex-border/20">
+            <li key={n.url} className="flex items-center justify-between gap-4 px-4 py-2.5 hover:bg-ink-700/20">
               <div className="min-w-0">
                 <a
                   href={n.url}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="block truncate text-sm text-slate-200 hover:text-rynex-accent"
+                  className="block truncate text-sm text-ink-100 hover:text-accent"
                 >
                   {n.headline}
                 </a>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-ink-400">
                   {n.publisher} · {timeAgo(n.published_at)}
                 </p>
               </div>

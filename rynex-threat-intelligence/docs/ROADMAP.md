@@ -54,10 +54,23 @@
 - [x] Global search results page across alerts/vulns/breaches/IOCs/news
 - [ ] Vitest component tests, Playwright e2e
 
-## Phase 8 — Notifications ✅ (core)
+## Phase 8 — Notifications & dark web ✅ (core)
 - [x] Telegram Bot API + SMTP email + generic webhook (config-gated, error-isolated)
 - [x] Dispatch wired into alert creation; delivered channels recorded on alert
 - [ ] Per-rule channel routing UI
+
+## Phase 8b — Dark web monitoring ✅ (compliant design)
+- [x] DarkWebGroupsCollector: 419 leak-site operator profiles via Ransomware.live (live-verified)
+- [x] `/darkweb/overview` API: group registry, claims by actor/day, recent claims, policy notice
+- [x] Dark Web dashboard page with scope notice and claims-vs-confirmed discipline
+- [x] **Policy enforced in code**: no Tor/onion connectivity, no marketplaces, no stolen data storage
+- [ ] Optional: vetted commercial dark-web API integrations (e.g. recorded-future type), keyword watchlists
+
+## Phase 8c — Secure SDLC formalization ✅
+- [x] SECURITY.md: threat model, mandatory dev gates, dark web handling policy
+- [x] Security regression test suite: SQLi probes, JWT tampering, HTML stripping, report whitelisting, secret invariants
+- [x] Dependency audits: pip-audit + npm audit clean (vite 5→8, react-router 6→7 upgraded; pip noted)
+- [ ] CI pipeline wiring the audit + test gates
 
 ## Phase 9 — Reports, admin, search (partially done)
 - [x] Reports: breaches/vulnerabilities/IOCs/alerts in JSON/CSV/Markdown with provenance note

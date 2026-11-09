@@ -33,7 +33,7 @@ export function SearchResults() {
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold text-white">
-        Search results for <span className="text-rynex-accent">“{q}”</span>
+        Search results for <span className="text-accent">“{q}”</span>
       </h1>
 
       {empty && <Card><EmptyState message="No matching intelligence found across any module." /></Card>}
@@ -41,11 +41,11 @@ export function SearchResults() {
       {results.alerts.length > 0 && (
         <Card>
           <CardHeader title={`Alerts (${results.alerts.length})`} />
-          <ul className="divide-y divide-rynex-border">
+          <ul className="divide-y divide-ink-600">
             {results.alerts.map((a) => (
               <li key={a.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <SeverityBadge severity={a.severity} />
-                <span className="min-w-0 flex-1 truncate text-slate-200">{a.title}</span>
+                <span className="min-w-0 flex-1 truncate text-ink-100">{a.title}</span>
                 <StatusBadge status={a.status} />
               </li>
             ))}
@@ -56,13 +56,13 @@ export function SearchResults() {
       {results.vulnerabilities.length > 0 && (
         <Card>
           <CardHeader title={`Vulnerabilities (${results.vulnerabilities.length})`} />
-          <ul className="divide-y divide-rynex-border">
+          <ul className="divide-y divide-ink-600">
             {results.vulnerabilities.map((v) => (
               <li key={v.cve_id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <SeverityBadge severity={v.severity ?? "informational"} />
-                <Link to={`/vulnerabilities?q=${v.cve_id}`} className="font-mono text-xs text-rynex-accent hover:underline">{v.cve_id}</Link>
-                <span className="min-w-0 flex-1 truncate text-xs text-slate-400">{v.title}</span>
-                {v.in_kev && <span className="text-[10px] uppercase text-orange-400">KEV</span>}
+                <Link to={`/vulnerabilities?q=${v.cve_id}`} className="font-mono text-xs text-accent hover:underline">{v.cve_id}</Link>
+                <span className="min-w-0 flex-1 truncate text-xs text-ink-300">{v.title}</span>
+                {v.in_kev && <span className="text-[10px] uppercase text-accent">KEV</span>}
               </li>
             ))}
           </ul>
@@ -72,12 +72,12 @@ export function SearchResults() {
       {results.breaches.length > 0 && (
         <Card>
           <CardHeader title={`Breach incidents (${results.breaches.length})`} />
-          <ul className="divide-y divide-rynex-border">
+          <ul className="divide-y divide-ink-600">
             {results.breaches.map((b, i) => (
               <li key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <StatusBadge status={b.verification} />
-                <span className="text-slate-200">{b.organization}</span>
-                {b.actor && <span className="text-xs text-red-400">claim by {b.actor}</span>}
+                <span className="text-ink-100">{b.organization}</span>
+                {b.actor && <span className="text-xs text-white">claim by {b.actor}</span>}
               </li>
             ))}
           </ul>
@@ -87,12 +87,12 @@ export function SearchResults() {
       {results.iocs.length > 0 && (
         <Card>
           <CardHeader title={`Indicators (${results.iocs.length})`} />
-          <ul className="divide-y divide-rynex-border">
+          <ul className="divide-y divide-ink-600">
             {results.iocs.map((i, idx) => (
               <li key={idx} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <span className="font-mono text-xs text-slate-200">{i.value}</span>
-                <span className="text-[10px] uppercase text-slate-500">{i.type}</span>
-                <span className="ml-auto text-[11px] text-slate-500">{i.source} · {(i.confidence * 100).toFixed(0)}%</span>
+                <span className="font-mono text-xs text-ink-100">{i.value}</span>
+                <span className="text-[10px] uppercase text-ink-400">{i.type}</span>
+                <span className="ml-auto text-[11px] text-ink-400">{i.source} · {(i.confidence * 100).toFixed(0)}%</span>
               </li>
             ))}
           </ul>
@@ -102,11 +102,11 @@ export function SearchResults() {
       {results.news.length > 0 && (
         <Card>
           <CardHeader title={`News (${results.news.length})`} />
-          <ul className="divide-y divide-rynex-border">
+          <ul className="divide-y divide-ink-600">
             {results.news.map((n) => (
               <li key={n.url} className="px-4 py-2.5 text-sm">
-                <a href={n.url} target="_blank" rel="noreferrer noopener" className="text-slate-200 hover:text-rynex-accent">{n.headline}</a>
-                <p className="text-[11px] text-slate-500">{n.publisher}</p>
+                <a href={n.url} target="_blank" rel="noreferrer noopener" className="text-ink-100 hover:text-accent">{n.headline}</a>
+                <p className="text-[11px] text-ink-400">{n.publisher}</p>
               </li>
             ))}
           </ul>

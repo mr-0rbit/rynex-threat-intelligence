@@ -7,6 +7,7 @@ as 'misconfigured' when the key is absent rather than crashing the pipeline.
 
 from app.collectors.base import BaseCollector
 from app.collectors.connectors.cisa_kev import CisaKevCollector
+from app.collectors.connectors.darkweb_groups import DarkWebGroupsCollector
 from app.collectors.connectors.feodo import FeodoTrackerCollector
 from app.collectors.connectors.news_rss import NewsRSSCollector
 from app.collectors.connectors.ransomware_live import RansomwareLiveCollector
@@ -23,6 +24,7 @@ COLLECTOR_CLASSES: list[type[BaseCollector]] = [
     ThreatFoxCollector,
     FeodoTrackerCollector,
     RansomwareLiveCollector,
+    DarkWebGroupsCollector,
     NewsRSSCollector,
 ]
 
