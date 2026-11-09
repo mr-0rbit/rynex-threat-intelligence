@@ -25,7 +25,9 @@ A centralized, continuously updated Cyber Threat Intelligence platform for Rynex
 | Notifications: Telegram, SMTP email, webhooks | ✅ Implemented (config-gated) |
 | **React dashboard** (dark theme, #00D4FF, Recharts, full alert/breach/vuln/IOC/news/source modules) | ✅ Built |
 | Docker Compose (Postgres, Redis, API, worker, beat, frontend/nginx) | ✅ Provided |
-| PDF reports, correlation→investigations UI, MISP feeds | ⏳ Remaining polish |
+| PDF reports | ✅ Implemented |
+| Correlation → Investigations UI | ✅ Built |
+| MISP feeds | ✅ Implemented |
 
 ## Quick start (development)
 
