@@ -4,7 +4,7 @@
 
 A centralized, continuously updated Cyber Threat Intelligence platform for Rynex Technologies. RTIP aggregates intelligence from legitimate, publicly accessible free/community-tier sources, correlates it, scores confidence transparently, and generates deduplicated, actionable alerts.
 
-> **Status: Phases 1–5 core complete, live-verified.** Real intelligence is flowing from CISA KEV (1,700+ vulnerabilities), Ransomware.live (breach claims), and 6 security news RSS feeds. See [docs/ROADMAP.md](docs/ROADMAP.md) for progress and pending work.
+> **Status: Phases 1–8 core complete, live-verified.** Real intelligence flows from CISA KEV (1,700+ vulnerabilities), Ransomware.live (breach claims), and 6 security news RSS feeds. Full React dashboard operational. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## What runs today
 
@@ -21,19 +21,27 @@ A centralized, continuously updated Cyber Threat Intelligence platform for Rynex
 | Confidence engine (deterministic, explainable) | ✅ Tested |
 | Alert engine (rule-based, fingerprint dedup, baseline suppression) | ✅ Tested |
 | Celery beat scheduling | ✅ Configured |
-| Docker Compose (Postgres, Redis, API, worker, beat) | ✅ Provided |
-| React dashboard | ⏳ Phase 7 |
-| Telegram/Email notifications | ⏳ Phase 8 |
-| Reports, admin UI, correlation engine | ⏳ Phases 9 |
+| Dashboard charts + global search + reports (JSON/CSV/Markdown) | ✅ Tested |
+| Notifications: Telegram, SMTP email, webhooks | ✅ Implemented (config-gated) |
+| **React dashboard** (dark theme, #00D4FF, Recharts, full alert/breach/vuln/IOC/news/source modules) | ✅ Built |
+| Docker Compose (Postgres, Redis, API, worker, beat, frontend/nginx) | ✅ Provided |
+| PDF reports, correlation→investigations UI, MISP feeds | ⏳ Remaining polish |
 
 ## Quick start (development)
 
 ```bash
 cp .env.example .env            # then edit secrets
+
+# Backend
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/uvicorn app.main:app --reload
 # API docs: http://localhost:8000/api/docs
+
+# Frontend (separate terminal)
+cd frontend
+npm install && npm run dev
+# Dashboard: http://localhost:5173
 ```
 
 Default admin (dev only): `admin@rynex.local` / `ChangeMeNow!2024` — **change immediately**.

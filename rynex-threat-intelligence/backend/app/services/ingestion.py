@@ -284,6 +284,17 @@ class IngestionService:
             recommended_action=self._recommended_action(candidate),
         )
         self.db.add(alert)
+        await self.db.flush()
+
+        # Fire-and-forget notifications; delivery never blocks ingestion
+        from app.services import notifications
+
+        if notifications.configured_channels():
+            try:
+                delivered = await notifications.dispatch_alert(alert)
+                alert.notified_channels = delivered
+            except Exception:  # noqa: BLE001
+                logger.exception("notification dispatch failed for alert %s", alert.id)
 
     @staticmethod
     def _recommended_action(candidate) -> str:

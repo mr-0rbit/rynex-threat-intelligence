@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@rynex.local"
     ADMIN_PASSWORD: str = "ChangeMeNow!2024"
 
+    # Notifications
+    TELEGRAM_BOT_TOKEN: str | None = None
+    TELEGRAM_CHAT_ID: str | None = None
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM: str | None = None
+    WEBHOOK_URL: str | None = None
+
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 

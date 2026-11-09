@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import auth, intel
+from app.api.v1 import analytics, auth, intel
 from app.core.config import settings
 from app.core.logging import setup_logging
 
@@ -92,6 +92,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(intel.router, prefix=settings.API_V1_PREFIX)
+app.include_router(analytics.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/api/health", tags=["health"])

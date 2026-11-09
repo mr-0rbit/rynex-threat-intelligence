@@ -41,29 +41,37 @@
 - [ ] Cross-source correlation → investigations
 - [ ] Timeline generation, related-entity discovery
 
-## Phase 7 — Frontend & dashboard
-- [ ] React + TS + Vite + Tailwind + shadcn/ui scaffold (dark theme, #00D4FF)
-- [ ] Dashboard overview + charts (Recharts) on real DB aggregates
-- [ ] Live activity feed, alerts management, breach/vuln/IOC modules
-- [ ] Vitest + Playwright tests
+## Phase 7 — Frontend & dashboard ✅
+- [x] React + TS + Vite + Tailwind (dark theme, #00D4FF), react-router, lucide icons
+- [x] Login + protected app shell with sidebar, global search bar, footer policy notice
+- [x] Dashboard: 6 live stat cards + 8 Recharts aggregates (all from real DB queries)
+- [x] Alerts module: filters, status workflow, evidence expansion, pagination
+- [x] Breach module: verification badges, actor claims, expandable confidence reasons
+- [x] Vulnerability module: KEV filter, severity, CVSS/EPSS columns
+- [x] IOC module: type filter, search, confidence bars
+- [x] News module: search, publisher filter, original links
+- [x] Sources module: health table, collection history, manual collect trigger
+- [x] Global search results page across alerts/vulns/breaches/IOCs/news
+- [ ] Vitest component tests, Playwright e2e
 
-## Phase 8 — Notifications & AI assistance
-- [ ] Telegram Bot API + SMTP + webhooks (+ optional Slack)
-- [ ] Per-severity/category notification routing
-- [ ] Optional LLM layer (summarize/extract, evidence-traceable, never confirms breaches)
+## Phase 8 — Notifications ✅ (core)
+- [x] Telegram Bot API + SMTP email + generic webhook (config-gated, error-isolated)
+- [x] Dispatch wired into alert creation; delivered channels recorded on alert
+- [ ] Per-rule channel routing UI
 
-## Phase 9 — Reports, admin UI, search
-- [ ] PDF/CSV/JSON/Markdown reports with source references
-- [ ] Admin settings: keys, schedules, thresholds, users, watchlists, audit logs
-- [ ] Global search + source configuration wizard
+## Phase 9 — Reports, admin, search (partially done)
+- [x] Reports: breaches/vulnerabilities/IOCs/alerts in JSON/CSV/Markdown with provenance note
+- [x] Global search endpoint + UI
+- [ ] PDF rendering, admin settings UI, source configuration wizard
 
 ## Phase 10 — Hardening & deployment
+- [x] Frontend Dockerfile + nginx (API proxy, security headers, SPA fallback)
 - [ ] Dependency vulnerability scanning (pip-audit, npm audit)
-- [ ] Performance testing, Nginx reverse proxy config
-- [ ] Alembic initial migration committed; CI pipeline
+- [ ] Performance testing; Alembic initial migration committed; CI pipeline
 
 ## Known debt / risks
 - EPSS gzip CSV (~30 MB) requires streaming ingest before enabling.
 - NVD without API key: 5 req/30s — implement segmented pacing.
 - docker compose plugin not installed in current dev machine; compose file provided and to be verified in Phase 10.
-- Frontend Dockerfile referenced by compose `full` profile — created in Phase 7.
+- Frontend bundle >500 kB warning — add code splitting.
+- Docker deployment unverified on this machine (no compose plugin); dev mode verified end-to-end.
