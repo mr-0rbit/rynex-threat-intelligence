@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, ShieldAlert } from "lucide-react";
+import { ExternalLink, ShieldAlert, MenuAlt2 } from "lucide-react";
 import { api } from "../api/client";
 import { Card, EmptyState, Spinner, StatusBadge, timeAgo } from "../components/ui";
 import { Pagination } from "./Vulnerabilities";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth";
 
 interface Breach {
   id: string;
@@ -20,14 +21,15 @@ interface Breach {
   source_url: string | null;
 }
 
-export function Breaches() {
+export function Breaches: React.FC = () => {
+  const { user } = useAuth();
   const [items, setItems] = useState<Breach[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [verification, setVerification] = useState("");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const load = useCallback(() => {
     setLoading(true);
@@ -77,7 +79,7 @@ export function Breaches() {
           {items.map((b) => (
             <Card key={b.id} className="p-4">
               <div className="flex items-start justify-between gap-4">
-                <button className="min-w-0 flex-1 text-left" onClick={() => setExpanded(expanded === b.id ? null : b.id)}>
+                <button className="min-w-0 flex-1 text-left" onClick={() => navigate(`/breaches/${b.id}`)}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold text-ink-100">{b.organization_name}</span>
                     <StatusBadge status={b.verification_status} />
@@ -97,15 +99,6 @@ export function Breaches() {
                   </a>
                 )}
               </div>
-              {expanded === b.id && (
-                <div className="mt-3 space-y-1.5 border-t border-ink-600 pt-3 text-xs text-ink-300">
-                  {b.organization_domain && <p><span className="text-ink-200">Domain:</span> {b.organization_domain}</p>}
-                  {b.claimed_data_types?.filter(Boolean).map((d, i) => <p key={i}><span className="text-ink-200">Claimed:</span> {d}</p>)}
-                  {b.confidence_reasons?.reasons?.length && (
-                    <p><span className="text-ink-200">Why this confidence:</span> {b.confidence_reasons.reasons.join("; ")}</p>
-                  )}
-                </div>
-              )}
             </Card>
           ))}
           <Pagination page={page} setPage={setPage} total={total} pageSize={25} />

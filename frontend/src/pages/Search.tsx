@@ -28,7 +28,11 @@ export function SearchResults() {
   if (loading) return <Spinner label={`Searching for “${q}”…`} />;
   if (!results) return <EmptyState message="Search failed" />;
 
-  const empty = Object.values(results).every((arr) => !arr || arr.length === 0);
+  // Safely check if all result arrays are empty
+  const empty =
+    Object.values(results ?? {}).every(
+      (arr) => !arr || (Array.isArray(arr) && arr.length === 0),
+    );
 
   return (
     <div className="space-y-4">
@@ -38,9 +42,9 @@ export function SearchResults() {
 
       {empty && <Card><EmptyState message="No matching intelligence found across any module." /></Card>}
 
-      {results.alerts.length > 0 && (
+      {results?.alerts?.length > 0 && (
         <Card>
-          <CardHeader title={`Alerts (${results.alerts.length})`} />
+          <CardHeader title={`Alerts (${results?.alerts?.length ?? 0})`} />
           <ul className="divide-y divide-ink-600">
             {results.alerts.map((a) => (
               <li key={a.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
@@ -53,9 +57,9 @@ export function SearchResults() {
         </Card>
       )}
 
-      {results.vulnerabilities.length > 0 && (
+      {results?.vulnerabilities?.length > 0 && (
         <Card>
-          <CardHeader title={`Vulnerabilities (${results.vulnerabilities.length})`} />
+          <CardHeader title={`Vulnerabilities (${results?.vulnerabilities?.length ?? 0})`} />
           <ul className="divide-y divide-ink-600">
             {results.vulnerabilities.map((v) => (
               <li key={v.cve_id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
@@ -69,9 +73,9 @@ export function SearchResults() {
         </Card>
       )}
 
-      {results.breaches.length > 0 && (
+      {results?.breaches?.length > 0 && (
         <Card>
-          <CardHeader title={`Breach incidents (${results.breaches.length})`} />
+          <CardHeader title={`Breach incidents (${results?.breaches?.length ?? 0})`} />
           <ul className="divide-y divide-ink-600">
             {results.breaches.map((b, i) => (
               <li key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
@@ -84,29 +88,14 @@ export function SearchResults() {
         </Card>
       )}
 
-      {results.iocs.length > 0 && (
+      {results?.news?.length > 0 && (
         <Card>
-          <CardHeader title={`Indicators (${results.iocs.length})`} />
-          <ul className="divide-y divide-ink-600">
-            {results.iocs.map((i, idx) => (
-              <li key={idx} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <span className="font-mono text-xs text-ink-100">{i.value}</span>
-                <span className="text-[10px] uppercase text-ink-400">{i.type}</span>
-                <span className="ml-auto text-[11px] text-ink-400">{i.source} · {(i.confidence * 100).toFixed(0)}%</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {results.news.length > 0 && (
-        <Card>
-          <CardHeader title={`News (${results.news.length})`} />
+          <CardHeader title={`News (${results?.news?.length ?? 0})`} />
           <ul className="divide-y divide-ink-600">
             {results.news.map((n) => (
-              <li key={n.url} className="px-4 py-2.5 text-sm">
-                <a href={n.url} target="_blank" rel="noreferrer noopener" className="text-ink-100 hover:text-accent">{n.headline}</a>
-                <p className="text-[11px] text-ink-400">{n.publisher}</p>
+              <li key={n.headline} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <span className="text-ink-100 truncate">{n.headline}</span>
+                <span className="text-xs text-white/60">{n.publisher}</span>
               </li>
             ))}
           </ul>
@@ -115,3 +104,5 @@ export function SearchResults() {
     </div>
   );
 }
+
+export default SearchResults;

@@ -6,6 +6,7 @@ import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { Alerts } from "./pages/Alerts";
 import { Breaches } from "./pages/Breaches";
+import { BreachDetail } from "./pages/BreachDetail";
 import { Vulnerabilities } from "./pages/Vulnerabilities";
 import { IOCs } from "./pages/IOCs";
 import { News } from "./pages/News";
@@ -23,6 +24,7 @@ function ProtectedApp() {
         <Route index element={<Dashboard />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/breaches" element={<Breaches />} />
+        <Route path="/breaches/:breachId" element={<BreachDetail />} />
         <Route path="/darkweb" element={<DarkWeb />} />
         <Route path="/vulnerabilities" element={<Vulnerabilities />} />
         <Route path="/iocs" element={<IOCs />} />
