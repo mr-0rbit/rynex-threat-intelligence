@@ -38,13 +38,13 @@ RTIP aggregates intelligence from **legitimate, publicly accessible free/communi
 
 ### Why RTIP?
 
-| | |
-|---|---|
-| **Real data only** | Every record has a named source, URL and timestamps. No fabricated intel. |
-| **Explainable scoring** | Each confidence score ships with human-readable reasons. |
-| **Low noise** | Fingerprint deduplication and first-run baseline suppression. |
-| **Terms-respecting** | Per-source commercial-use status and terms are tracked. |
-| **Resilient collection** | Async collectors with retries, backoff, rate limits, checkpoints and health. |
+|                                                                                                                 |                                                                                                     |
+|-----------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| **Real data only**                                                                                              | Every record has a named source, URL and timestamps. No fabricated intel.                           |
+| **Explainable scoring**                                                                                         | Each confidence score ships with human-readable reasons.                                            |
+| **Low noise**                                                                                                   | Fingerprint deduplication and first-run baseline suppression.                                       |
+| **Terms-respecting**                                                                                            | Per-source commercial-use status and terms are tracked.                                             |
+| **Resilient collection**                                                                                        | Async collectors with retries, backoff, rate limits, checkpoints and health.                        |
 
 ---
 
@@ -52,55 +52,55 @@ RTIP aggregates intelligence from **legitimate, publicly accessible free/communi
 
 ### Core Platform
 
-| Capability | Status |
-|---|:---:|
-| FastAPI backend with JWT auth + RBAC (`admin` / `analyst` / `viewer`) | Tested |
-| Normalized PostgreSQL schema (SQLAlchemy 2.0, Alembic migration `913c69783841`) | Tested |
-| Collector framework (async, retries, backoff, rate limits, checkpoints, per-source health) | Tested |
-| Deterministic confidence engine (no AI inside the score) | Tested |
-| Alert engine (rule-based, fingerprint dedup, baseline suppression, DB-override rules) | Tested |
-| Asset inventory + watchlists with severity escalation | Live verified |
-| WebSocket live alert bus | Live verified |
-| Celery beat scheduling | Live |
+| Capability                                                                                                      |                                               Status                                                |
+|-----------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------:|
+| FastAPI backend with JWT auth + RBAC (`admin` / `analyst` / `viewer`)                                           |                                               Tested                                                |
+| Normalized PostgreSQL schema (SQLAlchemy 2.0, Alembic migration `913c69783841`)                                 |                                               Tested                                                |
+| Collector framework (async, retries, backoff, rate limits, checkpoints, per-source health)                      |                                               Tested                                                |
+| Deterministic confidence engine (no AI inside the score)                                                        |                                               Tested                                                |
+| Alert engine (rule-based, fingerprint dedup, baseline suppression, DB-override rules)                           |                                               Tested                                                |
+| Asset inventory + watchlists with severity escalation                                                           |                                            Live verified                                            |
+| WebSocket live alert bus                                                                                        |                                            Live verified                                            |
+| Celery beat scheduling                                                                                          |                                                Live                                                 |
 
 ### Intelligence Sources
 
-| Source | Type | Status |
-|---|---|:---:|
-| **CISA KEV** (1,769 entries) | Known exploited vulnerabilities | Live |
-| **Ransomware.live** v2 API (100 recent claims, victim domains + gang claims) | Breach claims (claims only) | Live |
-| **blocklist.de** (20,852 attack-source IPs, keyless) | Abuse / brute-force IPs | Live |
-| **Feodo Tracker** | C2 server IPs (banking trojans) | Live |
-| **Dark web actor groups** (419 profiles) | Ransomware gang monitoring | Live |
-| **Security News RSS** - HN, BleepingComputer, SecurityWeek, Dark Reading, Krebs, CISA (277 articles) | News | Live |
-| **NVD**, **EPSS** | CVE + exploitation probability | Implemented |
-| **URLhaus** *(needs free abuse.ch key)* | Malicious URLs | Implemented |
-| **ThreatFox** *(needs free abuse.ch key)* | IOCs | Implemented |
-| **MISP feeds** | Private/community feeds | Implemented (config-gated) |
+| Source                                                                                                          | Type                                                                 |            Status            |
+|-----------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|:----------------------------:|
+| **CISA KEV** (1,769 entries)                                                                                    | Known exploited vulnerabilities                                      |             Live             |
+| **Ransomware.live** v2 API (100 recent claims, victim domains + gang claims)                                    | Breach claims (claims only)                                          |             Live             |
+| **blocklist.de** (20,852 attack-source IPs, keyless)                                                            | Abuse / brute-force IPs                                              |             Live             |
+| **Feodo Tracker**                                                                                               | C2 server IPs (banking trojans)                                      |             Live             |
+| **Dark web actor groups** (419 profiles)                                                                        | Ransomware gang monitoring                                           |             Live             |
+| **Security News RSS** - HN, BleepingComputer, SecurityWeek, Dark Reading, Krebs, CISA (277 articles)            | News                                                                 |             Live             |
+| **NVD**, **EPSS**                                                                                               | CVE + exploitation probability                                       |         Implemented          |
+| **URLhaus** *(needs free abuse.ch key)*                                                                         | Malicious URLs                                                       |         Implemented          |
+| **ThreatFox** *(needs free abuse.ch key)*                                                                       | IOCs                                                                 |         Implemented          |
+| **MISP feeds**                                                                                                  | Private/community feeds                                              |  Implemented (config-gated)  |
 
 > Keyed sources degrade gracefully: without a key they report `misconfigured`/`degraded` in the sources UI instead of crashing the pipeline. Free abuse.ch keys: <https://auth.abuse.ch/>
 
 ### Security and Access
 
-| Capability | Status |
-|---|:---:|
-| TOTP multi-factor authentication | Live verified |
-| Login rate limiting (per-IP sliding window, 429 responses) | Live verified |
-| Immutable audit log of admin/analyst actions | Live verified |
-| Revocable API tokens | Live verified |
-| Refresh-token rotation with reuse detection | Live verified |
+| Capability                                                                                                      |                                               Status                                                |
+|-----------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------:|
+| TOTP multi-factor authentication                                                                                |                                            Live verified                                            |
+| Login rate limiting (per-IP sliding window, 429 responses)                                                      |                                            Live verified                                            |
+| Immutable audit log of admin/analyst actions                                                                    |                                            Live verified                                            |
+| Revocable API tokens                                                                                            |                                            Live verified                                            |
+| Refresh-token rotation with reuse detection                                                                     |                                            Live verified                                            |
 
 ### Analyst Experience
 
-| Capability | Status |
-|---|:---:|
-| React dashboard - dark theme, `#00D4FF` accent, Recharts; alert / breach / vuln / IOC / news / source modules | Built |
-| Dashboard charts + global search | Tested |
-| Reports: JSON / CSV / Markdown / PDF | Built |
-| Correlation to Investigations UI | Built |
-| Metrics + admin endpoints | Built |
-| Notifications: Telegram, SMTP email, webhooks | Implemented (config-gated) |
-| Docker Compose (Postgres, Redis, API, worker, beat, frontend/nginx) | Provided |
+| Capability                                                                                                      |                                               Status                                                |
+|-----------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------:|
+| React dashboard - dark theme, `#00D4FF` accent, Recharts; alert / breach / vuln / IOC / news / source modules   |                                                Built                                                |
+| Dashboard charts + global search                                                                                |                                               Tested                                                |
+| Reports: JSON / CSV / Markdown / PDF                                                                            |                                                Built                                                |
+| Correlation to Investigations UI                                                                                |                                                Built                                                |
+| Metrics + admin endpoints                                                                                       |                                                Built                                                |
+| Notifications: Telegram, SMTP email, webhooks                                                                   |                                     Implemented (config-gated)                                      |
+| Docker Compose (Postgres, Redis, API, worker, beat, frontend/nginx)                                             |                                              Provided                                               |
 
 ---
 
@@ -170,15 +170,15 @@ Full details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ## Live Collection Schedule
 
-| Source | Interval |
-|---|---|
-| IOC feeds (URLhaus, Feodo) | every 15 min |
-| ThreatFox | hourly at :05 |
-| CISA KEV | hourly at :10 |
-| Ransomware.live | hourly at :20 |
-| blocklist.de | hourly at :25 |
-| Security news RSS | every 10 min |
-| Dark web actor groups | every 12 h |
+| Source                                                                                                          |                                              Interval                                               |
+|-----------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------:|
+| IOC feeds (URLhaus, Feodo)                                                                                      |                                            every 15 min                                             |
+| ThreatFox                                                                                                       |                                            hourly at :05                                            |
+| CISA KEV                                                                                                        |                                            hourly at :10                                            |
+| Ransomware.live                                                                                                 |                                            hourly at :20                                            |
+| blocklist.de                                                                                                    |                                            hourly at :25                                            |
+| Security news RSS                                                                                               |                                            every 10 min                                             |
+| Dark web actor groups                                                                                           |                                             every 12 h                                              |
 
 ---
 
@@ -257,16 +257,16 @@ RTIP is built on a few non-negotiable principles:
 
 ## Security
 
-| Control | Detail |
-|---|---|
-| Authentication | JWT with role-based access control (`admin` / `analyst` / `viewer`), refresh rotation, MFA (TOTP) |
-| Passwords | bcrypt hashing |
-| Brute force | Per-IP sliding-window login rate limiting (429 on threshold) |
-| Audit | Immutable audit log of admin/analyst actions |
-| Transport hardening | Security headers |
-| Input handling | Strict validation (Pydantic) |
-| Collection safety | Per-source rate limiting, response size caps |
-| SSRF protection | Config-only destinations; no user-supplied feed URLs without validation |
+| Control                                                                                                         | Detail                                                                                              |
+|-----------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| Authentication                                                                                                  | JWT with role-based access control (`admin` / `analyst` / `viewer`), refresh rotation, MFA (TOTP)   |
+| Passwords                                                                                                       | bcrypt hashing                                                                                      |
+| Brute force                                                                                                     | Per-IP sliding-window login rate limiting (429 on threshold)                                        |
+| Audit                                                                                                           | Immutable audit log of admin/analyst actions                                                        |
+| Transport hardening                                                                                             | Security headers                                                                                    |
+| Input handling                                                                                                  | Strict validation (Pydantic)                                                                        |
+| Collection safety                                                                                               | Per-source rate limiting, response size caps                                                        |
+| SSRF protection                                                                                                 | Config-only destinations; no user-supplied feed URLs without validation                             |
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) § Security.
 
@@ -274,11 +274,11 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) § Security.
 
 ## Documentation
 
-| Doc | Purpose |
-|---|---|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System design and security model |
-| [`docs/SOURCES.md`](docs/SOURCES.md) | Source catalog, terms and commercial-use status |
-| `http://localhost:8000/api/docs` | Interactive OpenAPI docs (when running) |
+| Doc                                                                                                             | Purpose                                                                                             |
+|-----------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)                                                                  | System design and security model                                                                    |
+| [`docs/SOURCES.md`](docs/SOURCES.md)                                                                            | Source catalog, terms and commercial-use status                                                     |
+| `http://localhost:8000/api/docs`                                                                                | Interactive OpenAPI docs (when running)                                                             |
 
 ---
 
