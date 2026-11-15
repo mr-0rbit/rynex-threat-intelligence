@@ -24,7 +24,7 @@
 ![JWT](https://img.shields.io/badge/JWT-auth-000000?style=flat-square&logo=jsonwebtokens&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-[Quick Start](#quick-start) · [Features](#what-runs-today) · [Leak Monitoring](#company-leak-monitoring-first-to-know) · [Architecture](#architecture) · [Intelligence Policy](#intelligence-policy) · [Security](#security) · [Docs](#documentation)
+[Quick Start](#quick-start) · [Full Setup Guide](#full-setup-guide) · [Features](#what-runs-today) · [Leak Monitoring](#company-leak-monitoring-first-to-know) · [Architecture](#architecture) · [Intelligence Policy](#intelligence-policy) · [Security](#security)
 
 </div>
 
@@ -38,13 +38,14 @@ RTIP aggregates intelligence from **legitimate, publicly accessible free/communi
 
 ### Why RTIP?
 
-|                                                                                                                 |                                                                                                     |
-|-----------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| **Real data only**                                                                                              | Every record has a named source, URL and timestamps. No fabricated intel.                           |
-| **Explainable scoring**                                                                                         | Each confidence score ships with human-readable reasons.                                            |
-| **Low noise**                                                                                                   | Fingerprint deduplication and first-run baseline suppression.                                       |
-| **Terms-respecting**                                                                                            | Per-source commercial-use status and terms are tracked.                                             |
-| **Resilient collection**                                                                                        | Async collectors with retries, backoff, rate limits, checkpoints and health.                        |
+<table width="100%">
+  <tr><th width="25%">Feature</th><th width="75%">What it means</th></tr>
+  <tr><td><b>Real data only</b></td><td>Every record has a named source, URL and timestamps. No fabricated intel.</td></tr>
+  <tr><td><b>Explainable scoring</b></td><td>Each confidence score ships with human-readable reasons.</td></tr>
+  <tr><td><b>Low noise</b></td><td>Fingerprint deduplication and first-run baseline suppression.</td></tr>
+  <tr><td><b>Terms-respecting</b></td><td>Per-source commercial-use status and terms are tracked.</td></tr>
+  <tr><td><b>Resilient collection</b></td><td>Async collectors with retries, backoff, rate limits, checkpoints and health.</td></tr>
+</table>
 
 ---
 
@@ -52,55 +53,59 @@ RTIP aggregates intelligence from **legitimate, publicly accessible free/communi
 
 ### Core Platform
 
-| Capability                                                                                                      |                                               Status                                                |
-|-----------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------:|
-| FastAPI backend with JWT auth + RBAC (`admin` / `analyst` / `viewer`)                                           |                                               Tested                                                |
-| Normalized PostgreSQL schema (SQLAlchemy 2.0, Alembic migration `913c69783841`)                                 |                                               Tested                                                |
-| Collector framework (async, retries, backoff, rate limits, checkpoints, per-source health)                      |                                               Tested                                                |
-| Deterministic confidence engine (no AI inside the score)                                                        |                                               Tested                                                |
-| Alert engine (rule-based, fingerprint dedup, baseline suppression, DB-override rules)                           |                                               Tested                                                |
-| Asset inventory + watchlists with severity escalation                                                           |                                            Live verified                                            |
-| WebSocket live alert bus                                                                                        |                                            Live verified                                            |
-| Celery beat scheduling                                                                                          |                                                Live                                                 |
+<table width="100%">
+  <tr><th width="72%">Capability</th><th width="28%">Status</th></tr>
+  <tr><td>FastAPI backend with JWT auth + RBAC (<code>admin</code> / <code>analyst</code> / <code>viewer</code>)</td><td align="center">Tested</td></tr>
+  <tr><td>Normalized PostgreSQL schema (SQLAlchemy 2.0, Alembic migration <code>913c69783841</code>)</td><td align="center">Tested</td></tr>
+  <tr><td>Collector framework (async, retries, backoff, rate limits, checkpoints, per-source health)</td><td align="center">Tested</td></tr>
+  <tr><td>Deterministic confidence engine (no AI inside the score)</td><td align="center">Tested</td></tr>
+  <tr><td>Alert engine (rule-based, fingerprint dedup, baseline suppression, DB-override rules)</td><td align="center">Tested</td></tr>
+  <tr><td>Asset inventory + watchlists with severity escalation</td><td align="center">Live verified</td></tr>
+  <tr><td>WebSocket live alert bus</td><td align="center">Live verified</td></tr>
+  <tr><td>Celery beat scheduling</td><td align="center">Live</td></tr>
+</table>
 
 ### Intelligence Sources
 
-| Source                                                                                                          | Type                                                                 |            Status            |
-|-----------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|:----------------------------:|
-| **CISA KEV** (1,769 entries)                                                                                    | Known exploited vulnerabilities                                      |             Live             |
-| **Ransomware.live** v2 API (100 recent claims, victim domains + gang claims)                                    | Breach claims (claims only)                                          |             Live             |
-| **blocklist.de** (20,852 attack-source IPs, keyless)                                                            | Abuse / brute-force IPs                                              |             Live             |
-| **Feodo Tracker**                                                                                               | C2 server IPs (banking trojans)                                      |             Live             |
-| **Dark web actor groups** (419 profiles)                                                                        | Ransomware gang monitoring                                           |             Live             |
-| **Security News RSS** - HN, BleepingComputer, SecurityWeek, Dark Reading, Krebs, CISA (277 articles)            | News                                                                 |             Live             |
-| **NVD**, **EPSS**                                                                                               | CVE + exploitation probability                                       |         Implemented          |
-| **URLhaus** *(needs free abuse.ch key)*                                                                         | Malicious URLs                                                       |         Implemented          |
-| **ThreatFox** *(needs free abuse.ch key)*                                                                       | IOCs                                                                 |         Implemented          |
-| **MISP feeds**                                                                                                  | Private/community feeds                                              |  Implemented (config-gated)  |
+<table width="100%">
+  <tr><th width="45%">Source</th><th width="35%">Type</th><th width="20%">Status</th></tr>
+  <tr><td><b>CISA KEV</b> (1,769 entries)</td><td>Known exploited vulnerabilities</td><td align="center">Live</td></tr>
+  <tr><td><b>Ransomware.live</b> v2 API (100 recent claims, victim domains + gang claims)</td><td>Breach claims (claims only)</td><td align="center">Live</td></tr>
+  <tr><td><b>blocklist.de</b> (20,852 attack-source IPs, keyless)</td><td>Abuse / brute-force IPs</td><td align="center">Live</td></tr>
+  <tr><td><b>Feodo Tracker</b></td><td>C2 server IPs (banking trojans)</td><td align="center">Live</td></tr>
+  <tr><td><b>Dark web actor groups</b> (419 profiles)</td><td>Ransomware gang monitoring</td><td align="center">Live</td></tr>
+  <tr><td><b>Security News RSS</b> - HN, BleepingComputer, SecurityWeek, Dark Reading, Krebs, CISA (277 articles)</td><td>News</td><td align="center">Live</td></tr>
+  <tr><td><b>NVD</b>, <b>EPSS</b></td><td>CVE + exploitation probability</td><td align="center">Implemented</td></tr>
+  <tr><td><b>URLhaus</b> <i>(needs free abuse.ch key)</i></td><td>Malicious URLs</td><td align="center">Implemented</td></tr>
+  <tr><td><b>ThreatFox</b> <i>(needs free abuse.ch key)</i></td><td>IOCs</td><td align="center">Implemented</td></tr>
+  <tr><td><b>MISP feeds</b></td><td>Private/community feeds</td><td align="center">Implemented (config-gated)</td></tr>
+</table>
 
-> Keyed sources degrade gracefully: without a key they report `misconfigured`/`degraded` in the sources UI instead of crashing the pipeline. Free abuse.ch keys: <https://auth.abuse.ch/>
+> Keyed sources degrade gracefully: without a key they report <code>misconfigured</code>/<code>degraded</code> in the sources UI instead of crashing the pipeline. Free abuse.ch keys: <a href="https://auth.abuse.ch/">https://auth.abuse.ch/</a>
 
 ### Security and Access
 
-| Capability                                                                                                      |                                               Status                                                |
-|-----------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------:|
-| TOTP multi-factor authentication                                                                                |                                            Live verified                                            |
-| Login rate limiting (per-IP sliding window, 429 responses)                                                      |                                            Live verified                                            |
-| Immutable audit log of admin/analyst actions                                                                    |                                            Live verified                                            |
-| Revocable API tokens                                                                                            |                                            Live verified                                            |
-| Refresh-token rotation with reuse detection                                                                     |                                            Live verified                                            |
+<table width="100%">
+  <tr><th width="72%">Capability</th><th width="28%">Status</th></tr>
+  <tr><td>TOTP multi-factor authentication</td><td align="center">Live verified</td></tr>
+  <tr><td>Login rate limiting (per-IP sliding window, 429 responses)</td><td align="center">Live verified</td></tr>
+  <tr><td>Immutable audit log of admin/analyst actions</td><td align="center">Live verified</td></tr>
+  <tr><td>Revocable API tokens</td><td align="center">Live verified</td></tr>
+  <tr><td>Refresh-token rotation with reuse detection</td><td align="center">Live verified</td></tr>
+</table>
 
 ### Analyst Experience
 
-| Capability                                                                                                      |                                               Status                                                |
-|-----------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------:|
-| React dashboard - dark theme, `#00D4FF` accent, Recharts; alert / breach / vuln / IOC / news / source modules   |                                                Built                                                |
-| Dashboard charts + global search                                                                                |                                               Tested                                                |
-| Reports: JSON / CSV / Markdown / PDF                                                                            |                                                Built                                                |
-| Correlation to Investigations UI                                                                                |                                                Built                                                |
-| Metrics + admin endpoints                                                                                       |                                                Built                                                |
-| Notifications: Telegram, SMTP email, webhooks                                                                   |                                     Implemented (config-gated)                                      |
-| Docker Compose (Postgres, Redis, API, worker, beat, frontend/nginx)                                             |                                              Provided                                               |
+<table width="100%">
+  <tr><th width="72%">Capability</th><th width="28%">Status</th></tr>
+  <tr><td>React dashboard - dark theme, <code>#00D4FF</code> accent, Recharts; alert / breach / vuln / IOC / news / source modules</td><td align="center">Built</td></tr>
+  <tr><td>Dashboard charts + global search</td><td align="center">Tested</td></tr>
+  <tr><td>Reports: JSON / CSV / Markdown / PDF</td><td align="center">Built</td></tr>
+  <tr><td>Correlation to Investigations UI</td><td align="center">Built</td></tr>
+  <tr><td>Metrics + admin endpoints</td><td align="center">Built</td></tr>
+  <tr><td>Notifications: Telegram, SMTP email, webhooks</td><td align="center">Implemented (config-gated)</td></tr>
+  <tr><td>Docker Compose (Postgres, Redis, API, worker, beat, frontend/nginx)</td><td align="center">Provided</td></tr>
+</table>
 
 ---
 
@@ -170,57 +175,132 @@ Full details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ## Live Collection Schedule
 
-| Source                                                                                                          |                                              Interval                                               |
-|-----------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------:|
-| IOC feeds (URLhaus, Feodo)                                                                                      |                                            every 15 min                                             |
-| ThreatFox                                                                                                       |                                            hourly at :05                                            |
-| CISA KEV                                                                                                        |                                            hourly at :10                                            |
-| Ransomware.live                                                                                                 |                                            hourly at :20                                            |
-| blocklist.de                                                                                                    |                                            hourly at :25                                            |
-| Security news RSS                                                                                               |                                            every 10 min                                             |
-| Dark web actor groups                                                                                           |                                             every 12 h                                              |
+<table width="100%">
+  <tr><th width="60%">Source</th><th width="40%">Interval</th></tr>
+  <tr><td>IOC feeds (URLhaus, Feodo)</td><td>every 15 min</td></tr>
+  <tr><td>ThreatFox</td><td>hourly at :05</td></tr>
+  <tr><td>CISA KEV</td><td>hourly at :10</td></tr>
+  <tr><td>Ransomware.live</td><td>hourly at :20</td></tr>
+  <tr><td>blocklist.de</td><td>hourly at :25</td></tr>
+  <tr><td>Security news RSS</td><td>every 10 min</td></tr>
+  <tr><td>Dark web actor groups</td><td>every 12 h</td></tr>
+</table>
 
 ---
 
-## Quick Start
+## Full Setup Guide
 
-### Option A - Development
+### Prerequisites
+
+<table width="100%">
+  <tr><th width="30%">Component</th><th width="25%">Minimum version</th><th width="45%">Notes</th></tr>
+  <tr><td>Linux or macOS</td><td>Debian/Ubuntu/Kali tested</td><td>Any Unix-like system works</td></tr>
+  <tr><td>Python</td><td>3.12</td><td>Backend runtime + Alembic + Celery</td></tr>
+  <tr><td>Node.js + npm</td><td>20</td><td>Frontend build (Vite)</td></tr>
+  <tr><td>Redis</td><td>7</td><td>Task broker + WebSocket event bus backend</td></tr>
+  <tr><td>Git</td><td>2.30</td><td>To clone the repository</td></tr>
+  <tr><td>Docker + Compose</td><td>24 / v2</td><td>Optional - one-command production-style install</td></tr>
+</table>
+
+### Step 1 - Get the code
 
 ```bash
-cp .env.example .env            # then edit secrets
+git clone git@github.com:mr-0rbit/rynex-threat-intelligence.git
+cd rynex-threat-intelligence
 ```
 
-**Backend**
+### Step 2 - Configure the environment
+
+```bash
+cp .env.example .env            # NEVER commit .env (already gitignored)
+```
+
+Then edit `.env`. Every variable is documented in the file itself; the ones you actually care about:
+
+<table width="100%">
+  <tr><th width="30%">Variable</th><th width="50%">Purpose</th><th width="20%">Dev default</th></tr>
+  <tr><td><code>DATABASE_URL</code></td><td>Database. SQLite for dev; set <code>postgresql+asyncpg://user:pass@host:5432/rtip</code> for production</td><td><code>sqlite+aiosqlite:///./rtip.db</code></td></tr>
+  <tr><td><code>REDIS_URL</code>, <code>CELERY_BROKER_URL</code>, <code>CELERY_RESULT_BACKEND</code></td><td>Redis DBs used for cache, task broker and task results</td><td><code>redis://localhost:6379/{0,1,2}</code></td></tr>
+  <tr><td><code>JWT_SECRET_KEY</code></td><td>Token signing secret. <b>Generate a real one:</b> <code>python3 -c "import secrets; print(secrets.token_urlsafe(48))"</code></td><td><code>CHANGE_ME_in_production</code></td></tr>
+  <tr><td><code>ADMIN_EMAIL</code>, <code>ADMIN_PASSWORD</code></td><td>First admin account, bootstrapped once on first backend start</td><td><code>admin@rynex.local</code> / <code>ChangeMeNow!2024</code></td></tr>
+  <tr><td><code>ACCESS_TOKEN_EXPIRE_MINUTES</code>, <code>REFRESH_TOKEN_EXPIRE_DAYS</code></td><td>Session lifetimes</td><td>60 min / 7 days</td></tr>
+  <tr><td><code>RATE_LIMIT_*</code></td><td>Per-IP login rate limiting (attempts per window)</td><td>10 / 300 s</td></tr>
+  <tr><td><code>CORS_ORIGINS</code></td><td>Allowed frontend origins (JSON list)</td><td>localhost:5173, :3000</td></tr>
+  <tr><td><code>THREATFOX_AUTH_KEY</code>, <code>URLHAUS_AUTH_KEY</code></td><td>Free abuse.ch key - unlocks ThreatFox + URLhaus (<a href="https://auth.abuse.ch/">auth.abuse.ch</a>)</td><td>empty</td></tr>
+  <tr><td><code>RANSOMWARELIVE_API_KEY</code></td><td>Optional; free tier works without a key</td><td>empty</td></tr>
+  <tr><td><code>NVD_API_KEY</code>, <code>MISP_URL</code>, <code>MISP_API_KEY</code></td><td>Optional NVD rate-limit boost and private MISP feeds</td><td>empty</td></tr>
+  <tr><td><code>TELEGRAM_BOT_TOKEN</code>, <code>SMTP_*</code>, <code>WEBHOOK_URL</code></td><td>Notification channels - each activates when set</td><td>empty</td></tr>
+  <tr><td><code>POSTGRES_USER</code>, <code>POSTGRES_PASSWORD</code>, <code>POSTGRES_DB</code></td><td>Docker Compose only (Postgres container)</td><td>rtip / <i>(required)</i> / rtip</td></tr>
+</table>
+
+### Step 3 - Install the backend
 
 ```bash
 cd backend
-python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/uvicorn app.main:app --reload
-# API docs: http://localhost:8000/api/docs
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
 ```
 
-**Frontend** *(separate terminal)*
+### Step 4 - Create the database schema
+
+```bash
+.venv/bin/alembic upgrade head          # applies all migrations (head: 913c69783841)
+```
+
+- **Dev:** SQLite - zero config, the file `backend/rtip.db` is created for you.
+- **Production:** set `DATABASE_URL` to PostgreSQL **before** this step.
+
+### Step 5 - Start Redis
+
+```bash
+redis-server --daemonize yes            # or: docker run -d -p 6379:6379 redis:7-alpine
+redis-cli ping                          # must reply PONG
+```
+
+### Step 6 - Run the backend
+
+```bash
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+- Health check: `curl http://localhost:8000/health` → `{"status":"ok",...}`
+- Interactive API docs: `http://localhost:8000/api/docs`
+- On the very first start the admin account from `ADMIN_EMAIL`/`ADMIN_PASSWORD` is created.
+
+### Step 7 - Run the Celery worker and scheduler
+
+Two separate terminals, both from `backend/`:
+
+```bash
+.venv/bin/celery -A app.workers.celery_app worker --loglevel=warning --concurrency=2
+.venv/bin/celery -A app.workers.celery_app beat --loglevel=warning
+```
+
+The worker executes collectors; beat fires the schedule from the table above. Without these two processes no scheduled collection happens - the API alone only stores what you trigger manually.
+
+### Step 8 - Run the frontend
 
 ```bash
 cd frontend
-npm install && npm run dev
+npm install
+npm run dev
 # Dashboard: http://localhost:5173
 ```
 
-> **Default admin (dev only):** `admin@rynex.local` / `ChangeMeNow!2024` - **change immediately.**
+Log in with the admin credentials from `.env`.
 
-### Option B - Docker Compose
+### Step 9 - Verify the installation
 
-```bash
-cp .env.example .env    # set POSTGRES_PASSWORD and JWT_SECRET_KEY
-docker compose up --build
-```
+<table width="100%">
+  <tr><th width="40%">Check</th><th width="60%">Expected</th></tr>
+  <tr><td><code>curl http://localhost:8000/health</code></td><td><code>{"status":"ok","service":"rtip-backend",...}</code></td></tr>
+  <tr><td>Dashboard login at <code>:5173</code></td><td>Alert feed, breach, vuln, IOC, news, sources modules render</td></tr>
+  <tr><td>Sources page</td><td>All 10 sources listed with per-source health (<code>healthy</code> / <code>degraded</code>)</td></tr>
+  <tr><td>IOC page after first collections</td><td>Populated with typed, scored, sourced indicators</td></tr>
+  <tr><td><code>redis-cli ping</code></td><td><code>PONG</code></td></tr>
+</table>
 
-Brings up Postgres, Redis, API, Celery worker, Celery beat, and the frontend served by nginx.
-
----
-
-## Collect Real Intelligence Now
+### Step 10 - Collect the first real intelligence
 
 ```bash
 cd backend
@@ -229,6 +309,58 @@ cd backend
 .venv/bin/python scripts/live_smoke.py ransomware-live
 .venv/bin/python scripts/live_smoke.py blocklist-de
 ```
+
+> **Baseline suppression:** the first successful run from each source stores history *without* generating alerts, so you never start with a backlog of noise. From the second run on, new records raise alerts and hit the WebSocket feed.
+
+### Step 11 - Register your company (activate "First to Know")
+
+1. Open **Assets** in the dashboard and add everything you own: domains (`criticality: critical`), IP ranges / CIDRs, product names.
+2. Open **Watchlists** and add your exact organization name as an `organization` item, plus any supplier domains, threat actors or CVEs you track.
+3. From then on, every leak-site victim, IOC, CVE or news item touching those entries escalates to a critical alert naming the matched asset - live, via WebSocket, within one collection cycle.
+
+### Step 12 - Optional keys and channels
+
+<table width="100%">
+  <tr><th width="35%">Key</th><th width="30%">Where to get it</th><th width="35%">Effect</th></tr>
+  <tr><td><code>THREATFOX_AUTH_KEY</code> + <code>URLHAUS_AUTH_KEY</code></td><td><a href="https://auth.abuse.ch/">auth.abuse.ch</a> (free)</td><td>Unlocks the ThreatFox and URLhaus connectors</td></tr>
+  <tr><td><code>RANSOMWARELIVE_API_KEY</code></td><td>ransomware.live partners page</td><td>Optional; free tier works without it</td></tr>
+  <tr><td><code>NVD_API_KEY</code></td><td><a href="https://nvd.nist.gov/developers/request-an-api-key">nvd.nist.gov</a> (free)</td><td>Raises NVD request rate limits</td></tr>
+  <tr><td><code>MISP_URL</code> + <code>MISP_API_KEY</code></td><td>Your MISP instance admin</td><td>Private feed ingestion (manual trigger)</td></tr>
+  <tr><td><code>TELEGRAM_BOT_TOKEN</code> / <code>SMTP_*</code> / <code>WEBHOOK_URL</code></td><td>BotFather / your mail server / your endpoint</td><td>Alerts delivered to those channels</td></tr>
+</table>
+
+After adding keys, restart the backend **and** the worker so the collector registry picks them up.
+
+### Quick Start (one-liner recap)
+
+```bash
+cp .env.example .env && cd backend && python3 -m venv .venv && \
+.venv/bin/pip install -e ".[dev]" && .venv/bin/alembic upgrade head
+# terminal 1: .venv/bin/uvicorn app.main:app --reload
+# terminal 2: .venv/bin/celery -A app.workers.celery_app worker --loglevel=warning
+# terminal 3: .venv/bin/celery -A app.workers.celery_app beat --loglevel=warning
+# terminal 4: cd frontend && npm install && npm run dev
+```
+
+### Option B - Docker Compose (all-in-one)
+
+```bash
+cp .env.example .env    # set POSTGRES_PASSWORD and JWT_SECRET_KEY
+docker compose up --build
+```
+
+Brings up PostgreSQL 17, Redis 7, API (:8000), Celery worker, Celery beat, and the frontend served by nginx (:3000). Apply migrations once after first start: `docker compose exec backend alembic upgrade head`.
+
+### Production hardening checklist
+
+- Generate a real `JWT_SECRET_KEY`; set `ENVIRONMENT=production`, `DEBUG=false`.
+- Use PostgreSQL with a strong `POSTGRES_PASSWORD`; never ship SQLite to production.
+- Change the bootstrapped admin password immediately, then enable TOTP MFA in the account page.
+- Terminate TLS at a reverse proxy and set `CORS_ORIGINS` to your real dashboard origin.
+- Keep `.env` out of version control (gitignored) and back it up securely - it is the only place secrets live.
+- Run worker + beat under a supervisor (Compose `restart: unless-stopped` policies are provided).
+
+---
 
 ## Tests
 
@@ -257,16 +389,17 @@ RTIP is built on a few non-negotiable principles:
 
 ## Security
 
-| Control                                                                                                         | Detail                                                                                              |
-|-----------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| Authentication                                                                                                  | JWT with role-based access control (`admin` / `analyst` / `viewer`), refresh rotation, MFA (TOTP)   |
-| Passwords                                                                                                       | bcrypt hashing                                                                                      |
-| Brute force                                                                                                     | Per-IP sliding-window login rate limiting (429 on threshold)                                        |
-| Audit                                                                                                           | Immutable audit log of admin/analyst actions                                                        |
-| Transport hardening                                                                                             | Security headers                                                                                    |
-| Input handling                                                                                                  | Strict validation (Pydantic)                                                                        |
-| Collection safety                                                                                               | Per-source rate limiting, response size caps                                                        |
-| SSRF protection                                                                                                 | Config-only destinations; no user-supplied feed URLs without validation                             |
+<table width="100%">
+  <tr><th width="30%">Control</th><th width="70%">Detail</th></tr>
+  <tr><td>Authentication</td><td>JWT with role-based access control (<code>admin</code> / <code>analyst</code> / <code>viewer</code>), refresh rotation, MFA (TOTP)</td></tr>
+  <tr><td>Passwords</td><td>bcrypt hashing</td></tr>
+  <tr><td>Brute force</td><td>Per-IP sliding-window login rate limiting (429 on threshold)</td></tr>
+  <tr><td>Audit</td><td>Immutable audit log of admin/analyst actions</td></tr>
+  <tr><td>Transport hardening</td><td>Security headers</td></tr>
+  <tr><td>Input handling</td><td>Strict validation (Pydantic)</td></tr>
+  <tr><td>Collection safety</td><td>Per-source rate limiting, response size caps</td></tr>
+  <tr><td>SSRF protection</td><td>Config-only destinations; no user-supplied feed URLs without validation</td></tr>
+</table>
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) § Security.
 
@@ -274,11 +407,12 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) § Security.
 
 ## Documentation
 
-| Doc                                                                                                             | Purpose                                                                                             |
-|-----------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)                                                                  | System design and security model                                                                    |
-| [`docs/SOURCES.md`](docs/SOURCES.md)                                                                            | Source catalog, terms and commercial-use status                                                     |
-| `http://localhost:8000/api/docs`                                                                                | Interactive OpenAPI docs (when running)                                                             |
+<table width="100%">
+  <tr><th width="40%">Doc</th><th width="60%">Purpose</th></tr>
+  <tr><td><a href="docs/ARCHITECTURE.md"><code>docs/ARCHITECTURE.md</code></a></td><td>System design and security model</td></tr>
+  <tr><td><a href="docs/SOURCES.md"><code>docs/SOURCES.md</code></a></td><td>Source catalog, terms and commercial-use status</td></tr>
+  <tr><td><code>http://localhost:8000/api/docs</code></td><td>Interactive OpenAPI docs (when running)</td></tr>
+</table>
 
 ---
 
