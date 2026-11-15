@@ -6,11 +6,14 @@ import {
   Globe2,
   LayoutDashboard,
   LogOut,
+  Network,
   Newspaper,
   Rss,
   Search,
+  Server,
   Shield,
   TriangleAlert,
+  UserCog,
 } from "lucide-react";
 import { useAuth } from "../auth";
 import { Footer } from "./Footer";
@@ -18,6 +21,8 @@ import { Footer } from "./Footer";
 const NAV = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard", end: true },
   { to: "/alerts", icon: TriangleAlert, label: "Alerts" },
+  { to: "/investigations", icon: Network, label: "Investigations" },
+  { to: "/assets", icon: Server, label: "Assets" },
   { to: "/breaches", icon: Database, label: "Breach Intel" },
   { to: "/darkweb", icon: Globe2, label: "Dark Web" },
   { to: "/vulnerabilities", icon: Bug, label: "Vulnerabilities" },
@@ -100,15 +105,26 @@ export function Layout() {
         {/* User Identity & Sign Out */}
         <div className="border-t border-ink-700/80 p-3 bg-ink-950/40">
           <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0 flex-1">
+            <NavLink
+              to="/account"
+              title="Account settings — password & MFA"
+              className="group min-w-0 flex-1 rounded p-1 text-left transition-colors hover:bg-ink-800"
+            >
               <div className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                <p className="truncate text-xs font-medium text-ink-200">{user?.email}</p>
+                <p className="truncate text-xs font-medium text-ink-200 group-hover:text-white">{user?.email}</p>
               </div>
               <p className="mt-0.5 text-[9px] uppercase tracking-[0.18em] text-accent font-mono">
                 [{user?.role || "ANALYST"}]
               </p>
-            </div>
+            </NavLink>
+            <NavLink
+              to="/account"
+              title="Account settings — password & MFA"
+              className="rounded p-1.5 text-ink-400 hover:bg-ink-800 hover:text-white hover:border-ink-500 border border-transparent transition-colors"
+            >
+              <UserCog className="h-3.5 w-3.5" />
+            </NavLink>
             <button
               onClick={() => {
                 logout();

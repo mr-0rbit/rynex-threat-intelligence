@@ -54,6 +54,18 @@ class Settings(BaseSettings):
     # SSRF protection for user-configurable feeds
     ALLOW_PRIVATE_NETWORK_SOURCES: bool = False
 
+    # Auth hardening
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_LOGIN_MAX_ATTEMPTS: int = 10  # per IP per window
+    RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = 300
+
+    # Data retention (days); 0 disables the cleanup task
+    RETENTION_COLLECTION_JOBS_DAYS: int = 90
+
+    # Optional NVD enrichment (API key raises the rate limit; free at https://nvd.nist.gov/developers/request-an-api-key)
+    NVD_API_KEY: str | None = None
+    NVD_MAX_AGE_DAYS: int = 7
+
 
 @lru_cache
 def get_settings() -> Settings:

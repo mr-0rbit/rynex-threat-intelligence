@@ -9,7 +9,6 @@ import logging
 from datetime import UTC, datetime
 
 import httpx
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.alert import Alert

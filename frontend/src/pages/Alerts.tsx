@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
-import { api } from "../api/client";
+/* Alerts.tsx — alert management with a live WebSocket feed.
+ *
+ * The banner subscribes to /api/v1/ws/alerts (same-origin, token in query).
+ * With default filters active, arriving alerts auto-refresh the list; with
+ * filters applied they only surface in the banner so the table stays stable.
+ * Connection drops auto-reconnect with capped backoff.
+ */
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { FileDown, X } from "lucide-react";
+import { api, createAlertSocket, downloadFile } from "../api/client";
 import { Card, EmptyState, SeverityBadge, Spinner, StatusBadge, timeAgo } from "../components/ui";
 
 interface AlertItem {
@@ -16,8 +25,20 @@ interface AlertItem {
   evidence_sources: { source_slug: string; url: string | null }[];
 }
 
+interface LiveAlert {
+  id: string;
+  title: string;
+  category: string;
+  severity: string;
+  confidence: number;
+  detected_at: string | null;
+}
+
+type LiveState = "connecting" | "live" | "offline";
+
 const SEVERITIES = ["", "critical", "high", "medium", "low", "informational"];
 const STATUSES = ["", "new", "acknowledged", "investigating", "confirmed", "false_positive", "resolved"];
+const MAX_LIVE_EVENTS = 5;
 
 export function Alerts() {
   const [items, setItems] = useState<AlertItem[]>([]);
@@ -27,6 +48,8 @@ export function Alerts() {
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -44,10 +67,91 @@ export function Alerts() {
 
   useEffect(load, [load]);
 
+  // ----- live feed (WebSocket; refs keep the effect mount-only) -----
+  const [liveState, setLiveState] = useState<LiveState>("connecting");
+  const [liveEvents, setLiveEvents] = useState<LiveAlert[]>([]);
+  const [bannerVisible, setBannerVisible] = useState(true);
+
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  const filterActiveRef = useRef(Boolean(severity || status));
+  filterActiveRef.current = Boolean(severity || status);
+
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let retryTimer: number | null = null;
+    let cancelled = false;
+    let attempts = 0;
+
+    const ingest = (msg: LiveAlert) => {
+      setLiveEvents((prev) => [msg, ...prev.filter((e) => e.id !== msg.id)].slice(0, MAX_LIVE_EVENTS));
+      if (!filterActiveRef.current) loadRef.current();
+    };
+
+    const connect = () => {
+      if (cancelled) return;
+      ws = createAlertSocket();
+      if (!ws) {
+        setLiveState("offline");
+        return;
+      }
+      ws.onopen = () => {
+        attempts = 0;
+        setLiveState("live");
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data as string) as { type: string } & LiveAlert;
+          if (msg.type === "connected") setLiveState("live");
+          else if (msg.type === "alert") ingest(msg);
+          // "ping" keepalives need no handling
+        } catch {
+          /* ignore malformed frames */
+        }
+      };
+      ws.onclose = () => {
+        setLiveState("offline");
+        if (!cancelled && attempts < 5) {
+          attempts += 1;
+          retryTimer = window.setTimeout(connect, Math.min(1000 * 2 ** attempts, 15000));
+        }
+      };
+      ws.onerror = () => ws?.close();
+    };
+
+    connect();
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      ws?.close();
+    };
+  }, []);
+
   const updateStatus = async (id: string, newStatus: string) => {
     await api(`/alerts/${id}/status`, { method: "POST", body: JSON.stringify({ status: newStatus }) });
     load();
   };
+
+  const downloadReport = async (id: string) => {
+    setDownloading(id);
+    setDownloadError(null);
+    try {
+      await downloadFile(`/alerts/${id}/report.pdf`, `rtip_alert_${id}.pdf`);
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : "PDF download failed");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const liveDot =
+    liveState === "live"
+      ? "bg-accent animate-pulse"
+      : liveState === "connecting"
+        ? "bg-ink-300 animate-pulse"
+        : "bg-ink-500";
+  const liveLabel =
+    liveState === "live" ? "LIVE" : liveState === "connecting" ? "CONNECTING…" : "FEED OFFLINE — retrying";
 
   return (
     <div className="space-y-4">
@@ -83,6 +187,50 @@ export function Alerts() {
           </select>
         </div>
       </div>
+
+      {/* ----- live feed banner ----- */}
+      {bannerVisible && (
+        <Card className="p-3">
+          <div className="flex items-center gap-3">
+            <span className={`flex h-2 w-2 shrink-0 rounded-full ${liveDot}`} />
+            <span className="shrink-0 text-2xs font-mono uppercase tracking-[0.14em] text-ink-200">{liveLabel}</span>
+            <div className="min-w-0 flex-1">
+              {liveEvents.length === 0 ? (
+                <span className="text-2xs font-mono text-ink-400">
+                  {liveState === "live" ? "Streaming new alerts as they are ingested." : "Waiting for connection…"}
+                </span>
+              ) : (
+                <ul className="space-y-0.5">
+                  {liveEvents.map((ev) => (
+                    <li key={ev.id} className="flex items-center gap-2 overflow-hidden">
+                      <SeverityBadge severity={ev.severity} />
+                      <span className="truncate text-2xs text-ink-200">{ev.title}</span>
+                      <span className="shrink-0 font-mono text-[10px] text-ink-500">{timeAgo(ev.detected_at)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <button
+              onClick={load}
+              className="shrink-0 rounded-sm border border-ink-600 px-2 py-1 text-2xs uppercase tracking-wider text-ink-300 hover:border-accent hover:text-accent"
+            >
+              Refresh
+            </button>
+            <button
+              onClick={() => setBannerVisible(false)}
+              title="Hide live feed banner"
+              className="shrink-0 rounded-sm p-1 text-ink-500 hover:text-ink-200"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {downloadError && (
+        <Card className="border-accent/50 p-3 text-xs text-accent">{downloadError}</Card>
+      )}
 
       {loading ? (
         <Spinner />
@@ -129,7 +277,7 @@ export function Alerts() {
                       <span className="font-medium text-accent">Recommended action:</span> {a.recommended_action}
                     </p>
                   )}
-                  {a.evidence_sources?.length > 0 && (
+                  {a.evidence_sources && a.evidence_sources.length > 0 && (
                     <p>
                       <span className="font-medium text-ink-200">Evidence:</span>{" "}
                       {a.evidence_sources.map((s, i) => (
@@ -146,6 +294,16 @@ export function Alerts() {
                       ))}
                     </p>
                   )}
+                  <div>
+                    <button
+                      onClick={() => downloadReport(a.id)}
+                      disabled={downloading === a.id}
+                      className="inline-flex items-center gap-1.5 rounded-sm border border-ink-600 px-2.5 py-1.5 text-2xs uppercase tracking-wider text-ink-300 hover:border-accent hover:text-accent disabled:opacity-40"
+                    >
+                      <FileDown className="h-3.5 w-3.5" />
+                      {downloading === a.id ? "Exporting…" : "Download PDF report"}
+                    </button>
+                  </div>
                 </div>
               )}
             </Card>

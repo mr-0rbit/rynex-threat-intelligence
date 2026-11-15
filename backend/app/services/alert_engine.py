@@ -70,7 +70,10 @@ class AlertEngine:
             {"name": "critical-cve", "category": CAT_CRITICAL_VULN, "min_severity": "critical", "min_confidence": 0.0},
             {"name": "breach-disclosure", "category": CAT_BREACH_DISCLOSURE, "min_severity": "low", "min_confidence": 0.0},
             {"name": "ransomware-victim", "category": CAT_RANSOMWARE_VICTIM, "min_severity": "low", "min_confidence": 0.0},
-            {"name": "malicious-url-ip", "category": CAT_MALICIOUS_DOMAIN_URL, "min_severity": "medium", "min_confidence": 0.3},
+            {"name": "malicious-url", "category": CAT_MALICIOUS_DOMAIN_URL, "min_severity": "medium", "min_confidence": 0.3},
+            {"name": "malicious-ip", "category": CAT_MALICIOUS_IP, "min_severity": "medium", "min_confidence": 0.3},
+            {"name": "high-epss", "category": CAT_HIGH_EPSS, "min_severity": "high", "min_confidence": 0.0},
+            {"name": "watchlist-mention", "category": CAT_WATCHLIST_MATCH, "min_severity": "informational", "min_confidence": 0.0},
         ]
 
     def evaluate(self, event: IntelligenceEvent) -> AlertCandidate | None:
@@ -121,6 +124,12 @@ class AlertEngine:
             vals = sorted((e.get("urls") or []) + (e.get("ips") or []) + (e.get("domains") or []))
             key = vals[0] if vals else event.title.lower()
             return f"mal:{key.lower()}"
+        if event.category == CAT_HIGH_EPSS:
+            cve = (e.get("cves") or ["unknown"])[0]
+            return f"epss:{cve.lower()}"
+        if event.category == CAT_WATCHLIST_MATCH:
+            value = e.get("watchlist_value") or "unknown"
+            return f"watch:{str(value).lower()}"
         return f"evt:{event.category}:{hashlib.sha256(event.title.lower().encode()).hexdigest()[:16]}"
 
     @staticmethod

@@ -1,25 +1,41 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, clearTokens, getAccessToken, login as apiLogin, setAuthCallbacks } from "./api/client";
+import {
+  api,
+  clearTokens,
+  getAccessToken,
+  login as apiLogin,
+  logout as apiLogout,
+  setAuthCallbacks,
+  tryRefresh,
+  verifyMfa as apiVerifyMfa,
+} from "./api/client";
 
 interface User {
   id: string;
   email: string;
   role: string;
   full_name: string | null;
+  mfa_enabled?: boolean;
 }
 
 interface AuthState {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** Returns mfaToken when an MFA challenge was issued (call verifyMfa next). */
+  login: (email: string, password: string) => Promise<{ status: "session" | "mfa"; mfaToken?: string }>;
+  verifyMfa: (mfaToken: string, code: string) => Promise<void>;
   logout: () => void;
+  /** Re-fetch /auth/me (e.g. after enabling/disabling MFA). */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
   user: null,
   loading: true,
-  login: async () => {},
-  logout: () => {},
+  login: async () => ({ status: "session" }),
+  verifyMfa: async () => {},
+  logout: async () => {},
+  refreshUser: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -28,29 +44,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setAuthCallbacks(() => setUser(null));
-    if (!getAccessToken()) {
-      setLoading(false);
-      return;
-    }
-    api<User>("/auth/me")
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    // No access token in memory after a page load — try the httpOnly cookie.
+    const boot = async () => {
+      try {
+        if (!getAccessToken()) await tryRefresh();
+        const me = await api<User>("/auth/me");
+        setUser(me);
+      } catch {
+        setUser(null);
+        clearTokens();
+      } finally {
+        setLoading(false);
+      }
+    };
+    boot();
   }, []);
 
   const login = async (email: string, password: string) => {
-    await apiLogin(email, password);
+    const result = await apiLogin(email, password);
+    if (result.mfa_required && result.mfa_token) {
+      return { status: "mfa" as const, mfaToken: result.mfa_token };
+    }
+    const me = await api<User>("/auth/me");
+    setUser(me);
+    return { status: "session" as const };
+  };
+
+  const verifyMfa = async (mfaToken: string, code: string) => {
+    await apiVerifyMfa(mfaToken, code);
     const me = await api<User>("/auth/me");
     setUser(me);
   };
 
-  const logout = () => {
-    clearTokens();
+  const logout = async () => {
+    await apiLogout();
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    try {
+      const me = await api<User>("/auth/me");
+      setUser(me);
+    } catch {
+      // token expired mid-flight — api() already triggered the logout callback
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, verifyMfa, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

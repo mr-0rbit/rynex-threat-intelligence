@@ -16,6 +16,8 @@ os.environ["ENVIRONMENT"] = "development"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-not-for-production"
 os.environ["ADMIN_EMAIL"] = "admin@test.local"
 os.environ["ADMIN_PASSWORD"] = "TestAdminPass!123"
+# Rate limiting is process-level state; tests would bleed 429s into each other
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 

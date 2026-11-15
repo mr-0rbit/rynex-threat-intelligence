@@ -33,19 +33,24 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute="*/15"),
         "args": (["urlhaus", "feodo-tracker"],),
     },
+    "collect-blocklist-de": {
+        "task": "rtip.collect_one",
+        "schedule": crontab(minute=25),
+        "args": ("blocklist-de",),
+    },
     "collect-threatfox": {
         "task": "rtip.collect_one",
-        "schedule": crontab(minute="5 * * * *"),
+        "schedule": crontab(minute=5),
         "args": ("threatfox",),
     },
     "collect-cisa-kev": {
         "task": "rtip.collect_one",
-        "schedule": crontab(minute="10 * * * *"),
+        "schedule": crontab(minute=10),
         "args": ("cisa-kev",),
     },
     "collect-ransomware-live": {
         "task": "rtip.collect_one",
-        "schedule": crontab(minute="20 * * * *"),
+        "schedule": crontab(minute=20),
         "args": ("ransomware-live",),
     },
     "collect-news": {
@@ -55,7 +60,21 @@ celery_app.conf.beat_schedule = {
     },
     "collect-darkweb-groups": {
         "task": "rtip.collect_one",
-        "schedule": crontab(minute="40 */12 * * *"),
+        "schedule": crontab(minute=40, hour="*/12"),
         "args": ("darkweb-groups",),
+    },
+    "collect-nvd": {
+        "task": "rtip.collect_one",
+        "schedule": crontab(minute=35),
+        "args": ("nvd",),
+    },
+    "collect-epss": {
+        "task": "rtip.collect_one",
+        "schedule": crontab(minute=10, hour=4),
+        "args": ("epss",),
+    },
+    "retention-cleanup": {
+        "task": "rtip.retention_cleanup",
+        "schedule": crontab(minute=0, hour=3),
     },
 }

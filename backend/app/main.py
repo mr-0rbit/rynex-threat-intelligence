@@ -8,7 +8,18 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import analytics, auth, darkweb, intel
+from app.api.v1 import (
+    admin,
+    analytics,
+    assets,
+    auth,
+    darkweb,
+    intel,
+    investigations,
+    metrics,
+    realtime,
+    watchlists,
+)
 from app.core.config import settings
 from app.core.logging import setup_logging
 
@@ -94,8 +105,20 @@ app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(intel.router, prefix=settings.API_V1_PREFIX)
 app.include_router(analytics.router, prefix=settings.API_V1_PREFIX)
 app.include_router(darkweb.router, prefix=settings.API_V1_PREFIX)
+app.include_router(assets.router, prefix=settings.API_V1_PREFIX)
+app.include_router(watchlists.router, prefix=settings.API_V1_PREFIX)
+app.include_router(investigations.router, prefix=settings.API_V1_PREFIX)
+app.include_router(admin.router, prefix=settings.API_V1_PREFIX)
+app.include_router(metrics.router, prefix=settings.API_V1_PREFIX)
+app.include_router(realtime.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/api/health", tags=["health"])
 async def health() -> dict:
     return {"status": "ok", "service": "rtip-backend", "environment": settings.ENVIRONMENT}
+
+
+# Top-level alias: some monitors/healthchecks poll /health directly
+@app.get("/health", tags=["health"], include_in_schema=False)
+async def health_alias() -> dict:
+    return await health()

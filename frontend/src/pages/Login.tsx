@@ -4,11 +4,13 @@ import { Eye, EyeOff, Lock, Mail, ShieldAlert } from "lucide-react";
 import { useAuth } from "../auth";
 
 export function Login() {
-  const { login } = useAuth();
+  const { login, verifyMfa } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [utcTime, setUtcTime] = useState("");
@@ -23,15 +25,32 @@ export function Login() {
     return () => clearInterval(interval);
   }, []);
 
+  const complete = () => navigate("/", { replace: true });
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await login(email, password);
-      navigate("/");
+      if (mfaToken) {
+        // Second step: MFA code
+        await verifyMfa(mfaToken, mfaCode.trim());
+        complete();
+        return;
+      }
+      const result = await login(email, password);
+      if (result.status === "mfa" && result.mfaToken) {
+        setMfaToken(result.mfaToken);
+        return; // wait for the authenticator code
+      }
+      complete();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed. Check credentials.");
+      if (mfaToken) {
+        // Failed verify keeps the challenge active; user can retry
+        setError(err instanceof Error ? err.message : "Verification failed.");
+      } else {
+        setError(err instanceof Error ? err.message : "Authentication failed. Check credentials.");
+      }
     } finally {
       setBusy(false);
     }
@@ -81,51 +100,76 @@ export function Login() {
 
               {/* Form */}
               <form onSubmit={submit} className="mt-7 space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-ink-200 font-mono mb-1.5">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-400">
-                      <Mail className="h-4 w-4" />
-                    </div>
+                {mfaToken ? (
+                  <div>
+                    <label className="block text-xs font-medium text-ink-200 font-mono mb-1.5">
+                      Authenticator code
+                    </label>
                     <input
-                      type="email"
+                      type="text"
                       required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded border border-ink-600 bg-ink-950 py-2.5 pl-9 pr-3 text-xs text-ink-100 placeholder:text-ink-500 font-mono focus:border-accent focus:bg-ink-900 focus:outline-none focus:ring-1 focus:ring-accent/40 transition-colors"
-                      placeholder="analyst@rynex.tech"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      autoFocus
+                      maxLength={6}
+                      value={mfaCode}
+                      onChange={(e) => setMfaCode(e.target.value.replace(/[^0-9]/g, ""))}
+                      className="w-full rounded border border-ink-600 bg-ink-950 py-2.5 px-3 text-sm text-ink-100 placeholder:text-ink-500 font-mono tracking-[0.5em] text-center focus:border-accent focus:bg-ink-900 focus:outline-none focus:ring-1 focus:ring-accent/40 transition-colors"
+                      placeholder="000000"
                     />
+                    <p className="mt-1.5 text-[10px] text-ink-400 font-mono">
+                      Enter the 6-digit code from your authenticator app.
+                    </p>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-ink-200 font-mono mb-1.5">
+                        Email
+                      </label>
+                      <div className="relative">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-400">
+                          <Mail className="h-4 w-4" />
+                        </div>
+                        <input
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full rounded border border-ink-600 bg-ink-950 py-2.5 pl-9 pr-3 text-xs text-ink-100 placeholder:text-ink-500 font-mono focus:border-accent focus:bg-ink-900 focus:outline-none focus:ring-1 focus:ring-accent/40 transition-colors"
+                          placeholder="analyst@rynex.tech"
+                        />
+                      </div>
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-ink-200 font-mono mb-1.5">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-400">
-                      <Lock className="h-4 w-4" />
+                    <div>
+                      <label className="block text-xs font-medium text-ink-200 font-mono mb-1.5">
+                        Password
+                      </label>
+                      <div className="relative">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-400">
+                          <Lock className="h-4 w-4" />
+                        </div>
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          required
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full rounded border border-ink-600 bg-ink-950 py-2.5 pl-9 pr-10 text-xs text-ink-100 placeholder:text-ink-500 font-mono focus:border-accent focus:bg-ink-900 focus:outline-none focus:ring-1 focus:ring-accent/40 transition-colors"
+                          placeholder="••••••••••••"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-ink-400 hover:text-ink-200 transition-colors"
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full rounded border border-ink-600 bg-ink-950 py-2.5 pl-9 pr-10 text-xs text-ink-100 placeholder:text-ink-500 font-mono focus:border-accent focus:bg-ink-900 focus:outline-none focus:ring-1 focus:ring-accent/40 transition-colors"
-                      placeholder="••••••••••••"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-ink-400 hover:text-ink-200 transition-colors"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
+                  </>
+                )}
 
                 {error && (
                   <div className="flex items-start gap-2.5 rounded border border-red-500/40 bg-red-950/30 p-2.5 text-xs text-red-200 font-mono">
@@ -142,10 +186,10 @@ export function Login() {
                   {busy ? (
                     <>
                       <div className="h-3.5 w-3.5 animate-spin border-2 border-black border-t-transparent rounded-full" />
-                      <span>Verifying Credentials…</span>
+                      <span>{mfaToken ? "Verifying Code…" : "Verifying Credentials…"}</span>
                     </>
                   ) : (
-                    <span>Access Platform</span>
+                    <span>{mfaToken ? "Confirm Identity" : "Access Platform"}</span>
                   )}
                 </button>
               </form>

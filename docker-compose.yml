@@ -85,7 +85,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-    profiles: ["full"]  # enabled in Phase 7
 
 volumes:
   pgdata:

@@ -11,8 +11,11 @@ import { Vulnerabilities } from "./pages/Vulnerabilities";
 import { IOCs } from "./pages/IOCs";
 import { News } from "./pages/News";
 import { Sources } from "./pages/Sources";
+import { Investigations } from "./pages/Investigations";
 import { SearchResults } from "./pages/Search";
 import { DarkWeb } from "./pages/DarkWeb";
+import { Assets } from "./pages/Assets";
+import { Account } from "./pages/Account";
 
 function ProtectedApp() {
   const { user, loading } = useAuth();
@@ -23,6 +26,7 @@ function ProtectedApp() {
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="/alerts" element={<Alerts />} />
+        <Route path="/investigations" element={<Investigations />} />
         <Route path="/breaches" element={<Breaches />} />
         <Route path="/breaches/:breachId" element={<BreachDetail />} />
         <Route path="/darkweb" element={<DarkWeb />} />
@@ -30,6 +34,8 @@ function ProtectedApp() {
         <Route path="/iocs" element={<IOCs />} />
         <Route path="/news" element={<News />} />
         <Route path="/sources" element={<Sources />} />
+        <Route path="/assets" element={<Assets />} />
+        <Route path="/account" element={<Account />} />
         <Route path="/search" element={<SearchResults />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

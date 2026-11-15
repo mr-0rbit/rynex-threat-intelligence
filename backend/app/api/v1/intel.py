@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import admin_required, analyst_required, get_current_user
+from app.api.deps import analyst_required, get_current_user
 from app.core.database import get_db
 from app.models import (
     Alert,
@@ -143,7 +143,34 @@ async def update_alert_status(
     alert.status = body.status
     if body.assigned_to:
         alert.assigned_to = body.assigned_to
+    await db.commit()  # status changes must be durable before the UI refetches
     return {"id": str(alert.id), "status": alert.status}
+
+
+@router.get("/alerts/{alert_id}/report.pdf")
+async def alert_report_pdf(
+    alert_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """PDF report for a single alert (case handoff / compliance export)."""
+    alert = await db.get(Alert, alert_id)
+    if not alert:
+        raise HTTPException(404, "Alert not found")
+    try:
+        # Lazy import: PDF support is optional; the API keeps working without it.
+        from app.services.report_generator import generate_alert_pdf
+    except ImportError as exc:
+        raise HTTPException(503, f"PDF generation unavailable: install reportlab ({exc})") from exc
+
+    from fastapi.responses import Response
+
+    pdf = generate_alert_pdf(alert)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="rtip_alert_{alert_id}.pdf"'},
+    )
 
 
 # ---------- Sources & collection ----------
@@ -332,6 +359,37 @@ async def list_breaches(
             }
             for b in breaches
         ],
+    }
+
+
+@router.get("/breaches/{breach_id}")
+async def breach_detail(
+    breach_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    breach = await db.get(BreachIncident, breach_id)
+    if not breach:
+        raise HTTPException(404, "Breach not found")
+    return {
+        "id": str(breach.id),
+        "organization_name": breach.organization_name,
+        "organization_domain": breach.organization_domain,
+        "industry": breach.industry,
+        "country": breach.country,
+        "region": breach.region,
+        "threat_actor_name": breach.threat_actor_name,
+        "claimed_data_types": breach.claimed_data_types,
+        "record_count": breach.record_count,
+        "record_count_reliability": breach.record_count_reliability,
+        "summary": breach.summary,
+        "published_at": breach.published_at.isoformat() if breach.published_at else None,
+        "verification_status": breach.verification_status,
+        "confidence": breach.confidence,
+        "confidence_reasons": breach.confidence_reasons,
+        "source_slug": breach.source_slug,
+        "source_url": breach.source_url,
+        "evidence_references": breach.evidence_references,
     }
 
 

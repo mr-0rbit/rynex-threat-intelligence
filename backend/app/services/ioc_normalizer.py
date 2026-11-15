@@ -149,7 +149,9 @@ class IOCNormalizer:
         for fmt in (
             "%Y-%m-%dT%H:%M:%S%z",
             "%Y-%m-%dT%H:%M:%S.%f%z",
+            "%Y-%m-%dT%H:%M:%S.%f",  # NVD API 2.0 (no offset; treated as UTC)
             "%Y-%m-%dT%H:%M:%SZ",
+            "%Y-%m-%dT%H:%M:%S",
             "%Y-%m-%d %H:%M:%S",
             "%Y-%m-%d",
             "%a, %d %b %Y %H:%M:%S %z",

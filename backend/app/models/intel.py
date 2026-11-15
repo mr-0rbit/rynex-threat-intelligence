@@ -40,6 +40,10 @@ class IOC(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reports_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
+    # Cross-source corroboration: ordered list of distinct source slugs that
+    # reported this exact (value, type). Drives the confidence re-score.
+    corroborating_sources: Mapped[list | None] = mapped_column(JSON)
+
     description: Mapped[str | None] = mapped_column(Text)
 
 

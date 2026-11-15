@@ -1,4 +1,5 @@
 from app.models.alert import Alert, AlertRule, Watchlist, WatchlistItem
+from app.models.asset import Asset
 from app.models.base import Base
 from app.models.intel import (
     BreachIncident,
@@ -9,11 +10,13 @@ from app.models.intel import (
     Vulnerability,
 )
 from app.models.source import CollectionJob, IntelligenceSource
-from app.models.user import AuditLog, User
+from app.models.user import ApiToken, AuditLog, PasswordResetToken, User
 
 __all__ = [
     "Alert",
     "AlertRule",
+    "ApiToken",
+    "Asset",
     "AuditLog",
     "Base",
     "BreachIncident",
@@ -21,6 +24,7 @@ __all__ = [
     "IntelligenceSource",    "Investigation",
     "IOC",
     "NewsArticle",
+    "PasswordResetToken",
     "ThreatActor",
     "User",
     "Vulnerability",

@@ -28,8 +28,6 @@ async def main() -> None:
             print("ERRORS:", result["errors"])
 
         # Show a few real records as proof of live ingestion
-        from sqlalchemy import select
-
         from sqlalchemy import func, select
 
         from app.models import Alert, BreachIncident, IOC, Vulnerability

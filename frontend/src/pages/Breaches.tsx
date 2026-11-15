@@ -1,9 +1,9 @@
-import { ExternalLink, ShieldAlert, MenuAlt2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ExternalLink, ShieldAlert } from "lucide-react";
 import { api } from "../api/client";
 import { Card, EmptyState, Spinner, StatusBadge, timeAgo } from "../components/ui";
 import { Pagination } from "./Vulnerabilities";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../auth";
 
 interface Breach {
   id: string;
@@ -21,8 +21,7 @@ interface Breach {
   source_url: string | null;
 }
 
-export function Breaches: React.FC = () => {
-  const { user } = useAuth();
+export function Breaches() {
   const [items, setItems] = useState<Breach[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);

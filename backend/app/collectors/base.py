@@ -68,10 +68,31 @@ class BaseCollector(ABC):
         raise NotImplementedError
         yield  # pragma: no cover  (keeps the method an async generator contract)
 
+    async def _last_checkpoint(self, db: AsyncSession) -> str | None:
+        """Checkpoint of the most recent successful run, for incremental fetches."""
+        from sqlalchemy import select
+
+        stmt = (
+            select(CollectionJob.checkpoint)
+            .where(
+                CollectionJob.source_slug == self.slug,
+                CollectionJob.status == "success",
+                CollectionJob.checkpoint.isnot(None),
+            )
+            .order_by(CollectionJob.started_at.desc())
+            .limit(1)
+        )
+        return (await db.execute(stmt)).scalar_one_or_none()
+
     async def run(self, db: AsyncSession, trigger: str = "scheduled") -> CollectorResult:
         """Execute a collection run with full job bookkeeping."""
+        prior_checkpoint = await self._last_checkpoint(db)
         job = CollectionJob(
-            source_slug=self.slug, status="running", trigger=trigger, started_at=datetime.now(UTC)
+            source_slug=self.slug,
+            status="running",
+            trigger=trigger,
+            started_at=datetime.now(UTC),
+            checkpoint=prior_checkpoint,
         )
         db.add(job)
         await db.flush()
@@ -84,7 +105,8 @@ class BaseCollector(ABC):
                     result.rejected += 1
                     continue
                 result.records.append(record)
-            job.checkpoint = result.checkpoint or job.checkpoint
+            result.checkpoint = getattr(self, "checkpoint_value", None)
+            job.checkpoint = result.checkpoint or prior_checkpoint
             job.status = "success"
         except (CollectorHTTPError, Exception) as exc:  # noqa: BLE001 — connector isolation
             job.status = "failed"

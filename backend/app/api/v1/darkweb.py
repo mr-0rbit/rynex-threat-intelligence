@@ -8,7 +8,7 @@ capability to access onion services, marketplaces, or stolen data.
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -34,7 +34,7 @@ async def darkweb_overview(db: AsyncSession = Depends(get_db), user: User = Depe
     groups = (
         await db.execute(
             select(ThreatActor)
-            .where(ThreatActor.source_slug == "darkweb-groups" or ThreatActor.source_slug == "ransomware-live")
+            .where(or_(ThreatActor.source_slug == "darkweb-groups", ThreatActor.source_slug == "ransomware-live"))
             .order_by(ThreatActor.name)
         )
     ).scalars().all()

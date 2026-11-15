@@ -1,328 +1,175 @@
-"""MISP threat intelligence feed collector.
+"""MISP collector — pulls published IOC attributes from a MISP instance.
 
-MISP (Malware Information Sharing Platform) is an open-source threat sharing platform.
-This collector connects to MISP instances via REST/SOAP API to ingest:
+MISP (Malware Information Sharing Platform) is the de-facto standard for
+community/sector threat sharing. This connector talks to a single instance's
+restSearch API (POST /events/restSearch) and yields already-published IOC
+attributes (IPs, domains, URLs, hashes, emails) as CollectedRecords.
 
-- Galaxies and attributes for IOCs
-- threat levels and categories
-- Published events for new indicators
-- Existing sightings and attributions
-
-Features:
-- Configurable MISP URL and API key
-- Rate limiting and retry logic
-- Automatic IOC normalization and dedup
-- Configurable event types to monitor
-- SSL verification support
+Optional source: requires MISP_URL and MISP_API_KEY env vars. It is NOT in the
+Celery beat schedule — trigger manually via POST /api/v1/sources/misp/collect
+(analyst+). TLP markings are preserved as tags; redistribution terms are set by
+the sharing community that runs the instance, so commercial_use_status stays
+"unknown" until the operator confirms the instance's policy.
 """
 
-import asyncio
-import logging
-from datetime import datetime, timezone, timedelta
+import os
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 
-import httpx
-from fastapi import HTTPException
+from app.collectors.base import BaseCollector, CollectedRecord
+from app.services.ioc_normalizer import IOCNormalizer
 
-from app.collectors.base import BaseCollector
-from app.core.config import settings
-from app.core.database import AsyncSessionLocal
-from app.models import IOC, IntelligenceSource
+# MISP attribute type → RTIP IOC type ("ip" auto-resolves to ipv4/ipv6)
+MISP_TYPE_MAP = {
+    "ip-src": "ip",
+    "ip-dst": "ip",
+    "domain": "domain",
+    "hostname": "domain",
+    "url": "url",
+    "md5": "md5",
+    "sha1": "sha1",
+    "sha256": "sha256",
+    "email-src": "email",
+    "email-dst": "email",
+}
 
-logger = logging.getLogger("rtip.collectors.misp")
+
+def _parse_misp_timestamp(value) -> datetime | None:
+    """MISP timestamps are epoch seconds (int or str); never guess."""
+    if value in (None, ""):
+        return None
+    try:
+        return datetime.fromtimestamp(int(float(value)), tz=UTC)
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
+
+
+def parse_misp_attribute(
+    attr: dict,
+    event_tags: list[str] | None = None,
+    source_url: str | None = None,
+) -> dict | None:
+    """Pure parser for one MISP attribute (restSearch JSON format).
+
+    Returns a dict matching the IOC ingestion contract, or None when the
+    attribute is not a supported IOC type or fails normalization.
+    """
+    if not isinstance(attr, dict):
+        return None
+    attr_type = (attr.get("type") or "").strip().lower()
+    mapped = MISP_TYPE_MAP.get(attr_type)
+    if mapped is None:
+        return None
+    raw = (attr.get("value") or "").strip()
+    if not raw:
+        return None
+    # "value1|value2" forms (e.g. domain|ip) are not supported individually
+    raw = raw.split("|")[0].strip()
+    normalized = IOCNormalizer.normalize(raw, mapped)
+    if normalized is None:
+        return None
+    value, vtype = normalized
+    host = value.split("/")[2] if vtype == "url" else value
+    if vtype in ("domain", "url") and IOCNormalizer.is_benign_domain(host):
+        return None
+
+    tags = ["misp"]
+    for tag in (event_tags or []) + [
+        t.get("name") or "" for t in (attr.get("Tag") or []) if isinstance(t, dict)
+    ]:
+        name = (tag or "").strip()
+        if name and name not in tags:
+            tags.append(name)
+
+    ts = _parse_misp_timestamp(attr.get("timestamp"))
+    first_seen = _parse_misp_timestamp(attr.get("first_seen")) or ts
+    last_seen = _parse_misp_timestamp(attr.get("last_seen")) or ts
+
+    return {
+        "value": value,
+        "type": vtype,
+        "source_slug": "misp",
+        "source_url": source_url,
+        "tags": tags,
+        "confidence": 0.75,  # shared community indicator; platform score applied at ingest
+        "description": (attr.get("comment") or "").strip() or None,
+        "first_seen_at": first_seen,
+        "last_seen_at": last_seen,
+        "external_id": (attr.get("uuid") or None),
+    }
 
 
 class MISPCollector(BaseCollector):
-    """Collector for MISP threat intelligence platform."""
+    """Collector for a single MISP instance via restSearch."""
 
-    name = "misp"
     slug = "misp"
-    description = "MISP threat intelligence platform feed"
-    version = "0.1.0"
+    name = "MISP Instance"
+    category = "ioc"
+    homepage_url = "https://www.misp-project.org/"
+    description = (
+        "Published IOC attributes pulled from a private/community MISP instance "
+        "via the restSearch API."
+    )
+    auth_method = "api_key_header"
+    api_key_setting = "MISP_API_KEY"
+    commercial_use_status = "unknown"
+    terms_notes = (
+        "Terms are set per instance by the sharing community that runs it; verify the "
+        "instance's sharing policy and TLP markings before redistribution. Only "
+        "already-published attributes are pulled. The instance must present a valid "
+        "TLS certificate."
+    )
+    rate_limit_notes = "One restSearch call per run; manual trigger only."
+    collection_interval_minutes = 360
+    source_credibility = 0.8
 
-    # Connector configuration defaults
-    MISP_URL = settings.MISP_URL or "https://your-misp.instance"
-    MISP_API_KEY = settings.MISP_API_KEY or ""
-    MISP_VERIFY_SSL = settings.MISP_VERIFY_SSL if hasattr(settings, "MISP_VERIFY_SSL") else True
-    MISP_EVENT_TYPE = settings.MISP_EVENT_TYPE or "malware-attack"
-    MISP_PROXIMITY_SEARCH = True  # Search for similar/following events
-    MISP_MAX_AGE_DAYS = int(settings.MISP_MAX_AGE_DAYS) if hasattr(settings, "MISP_MAX_AGE_DAYS") else 30
+    def __init__(self, api_key: str | None = None):
+        super().__init__(api_key=api_key or os.getenv("MISP_API_KEY"))
+        self.base_url = (os.getenv("MISP_URL") or "").rstrip("/")
+        self.max_age_days = int(os.getenv("MISP_MAX_AGE_DAYS", "30"))
 
-    def __init__(self):
-        super().__init__(self.name, self.slug, self.description)
-        self.client: httpx.AsyncClient | None = None
+    async def fetch_batch(self, checkpoint: str | None = None) -> AsyncIterator[CollectedRecord]:
+        if not self.base_url:
+            raise RuntimeError("MISP collector requires MISP_URL to be set")
+        if not self.api_key:
+            raise RuntimeError("MISP collector requires an API key — set MISP_API_KEY")
 
-    async def _connect(self) -> None:
-        """Initialize the HTTP client with auth headers."""
+        since = int((datetime.now(UTC) - timedelta(days=self.max_age_days)).timestamp())
+        body = {"returnFormat": "json", "published": 1, "timestamp": str(since), "limit": 500}
         headers = {
-            "Authorization": self.MISP_API_KEY,
+            "Authorization": self.api_key,
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
-        self.client = httpx.AsyncClient(
-            timeout=30.0,
+        resp = await self.http.fetch(
+            f"{self.base_url}/events/restSearch",
+            method="POST",
             headers=headers,
-            verify=self.MISP_VERIFY_SSL,
+            json_body=body,
+            rate_limit_interval=2.0,
         )
+        payload = resp.json()
+        events = payload.get("response", []) if isinstance(payload, dict) else payload
+        if not isinstance(events, list):
+            return
 
-    async def _disconnect(self) -> None:
-        """Close the HTTP client."""
-        if self.client:
-            await self.client.aclose()
-            self.client = None
-
-    async def collect(self) -> dict:
-        """Collect IOCs from MISP platform.
-
-        Fetches events matching the configured event type and extracts
-        new/updated indicators into the RTIP IOC database.
-
-        Returns:
-            dict with collection stats (new_iocs, updated_iocs, skipped_iocs)
-        """
-        if not self.MISP_API_KEY:
-            logger.warning("MISP_API_KEY not configured; skipping collector %s", self.slug)
-            return {"new_iocs": 0, "updated_iocs": 0, "skipped_iocs": 0, "error": "missing_api_key"}
-
-        await self._connect()
-        try:
-            new_iocs = 0
-            updated_iocs = 0
-            skipped_iocs = 0
-
-            # Fetch events from MISP
-            events = await self._fetch_events()
-            if not events:
-                logger.info("No MISP events found for collector %s", self.slug)
-                return {"new_iocs": 0, "updated_iocs": 0, "skipped_iocs": 0}
-
-            # Process each event
-            async with AsyncSessionLocal() as db:
-                for event in events:
-                    ioc_count = await self._process_event(db, event)
-                    new_iocs += ioc_count.get("new", 0)
-                    updated_iocs += ioc_count.get("updated", 0)
-                    skipped_iocs += ioc_count.get("skipped", 0)
-
-                await db.commit()
-
-            logger.info(
-                "MISP collector completed: new=%s, updated=%s, skipped=%s",
-                new_iocs, updated_iocs, skipped_iocs,
-            )
-            return {
-                "new_iocs": new_iocs,
-                "updated_iocs": updated_iocs,
-                "skipped_iocs": skipped_iocs,
-                "error": None,
-            }
-
-        except Exception as exc:
-            logger.error("MISP collector failed: %s", exc, exc_info=True)
-            return {"new_iocs": 0, "updated_iocs": 0, "skipped_iocs": 0, "error": str(exc)}
-        finally:
-            await self._disconnect()
-
-    async def _fetch_events(self) -> list[dict]:
-        """Fetch events from MISP API.
-
-        Queries for events of the configured type within the age window.
-        Returns a list of event dicts from the MISP response.
-        """
-        url = f"{self.MISP_URL}/events/restSearch"
-        # Build CQL (MISP Query Language) search
-        from datetime import timedelta
-        age_cutoff = (datetime.now(timezone.utc) - timedelta(days=self.MISP_MAX_AGE_DAYS)).strftime("%Y-%m-%d")
-
-        cql_filter = f"event_type:{self.MISP_EVENT_TYPE} AND timestamp_start:[{age_cutoff} TO *]"
-        params = {
-            "q": cql_filter,
-            "limit": 100,
-            "page": 1,
-        }
-
-        try:
-            resp = await self.client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
-
-            # MISP restSearch returns dict with 'events' key or list directly
-            events = data.get("events", data) if isinstance(data, dict) else data
-            return events if isinstance(events, list) else []
-
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 401:
-                logger.error("MISP authentication failed - check API key")
-                raise HTTPException(status_code=401, detail="MISP authentication failed")
-            logger.error("MISP HTTP error: %s", e)
-            raise
-        except Exception as exc:
-            logger.error("Failed to fetch MISP events: %s", exc)
-            raise
-
-    async def _process_event(self, db, event: dict) -> dict:
-        """Process a single MISP event and extract IOCs.
-
-        Args:
-            db: Async database session
-            event: MISP event dict containing attributes and galaxies
-
-        Returns:
-            dict with counts of new/updated/skipped IOCs from this event
-        """
-        from sqlalchemy import select, func
-
-        new_iocs = 0
-        updated_iocs = 0
-        skipped_iocs = 0
-
-        # Extract basic event info
-        event_id = event.get("id", 0)
-        event_info = event.get("info", "Unknown event")
-        published = event.get("timestamp", datetime.now(timezone.utc).isoformat())
-        if isinstance(published, str):
-            try:
-                published_dt = datetime.fromisoformat(published.replace("Z", "+00:00"))
-            except (ValueError, AttributeError):
-                published_dt = datetime.now(timezone.utc)
-        else:
-            published_dt = datetime.now(timezone.utc)
-
-        # Extract attributes from the event
-        attributes = event.get("Attribute", [])
-        if not attributes:
-            return {"new": 0, "updated": 0, "skipped": 0}
-
-        for attr in attributes:
-            try:
-                ioc_data = self._extract_ioc_from_attribute(attr)
-                if not ioc_data:
-                    skipped_iocs += 1
+        for item in events:
+            event = item.get("Event", item) if isinstance(item, dict) else None
+            if not isinstance(event, dict):
+                continue
+            event_id = event.get("id")
+            event_url = f"{self.base_url}/events/view/{event_id}" if event_id else self.base_url
+            event_tags = [
+                t.get("name") or "" for t in (event.get("Tag") or []) if isinstance(t, dict)
+            ]
+            for attr in event.get("Attribute") or []:
+                parsed = parse_misp_attribute(attr, event_tags=event_tags, source_url=event_url)
+                if parsed is None:
                     continue
-
-                indicator_type = ioc_data.get("type", "").lower()
-                indicator_value = ioc_data.get("value", "").strip()
-
-                if not indicator_value:
-                    skipped_iocs += 1
-                    continue
-
-                # Check if IOC already exists
-                stmt = select(IOC).where(IOC.value == indicator_value)
-                existing = (await db.execute(stmt)).scalar_one_or_none()
-
-                # Build IOC object data
-                ioc_defaults = {
-                    "source": self.slug,
-                    "source_id": str(event_id),
-                    "category": ioc_data.get("category", "Unknown"),
-                    "severity": self._map_misp_severity(attr.get("distribution", "TLP:WHITE")),
-                    "confidence": 0.7,  # Base confidence for MISP-sourced IOCs
-                    "description": ioc_data.get("description", ""),
-                    "last_seen_at": datetime.now(timezone.utc),
-                    "times_seen": 1,
-                    "malware_families": ioc_data.get("malware_families", []),
-                    "threat_actor": ioc_data.get("threat_actor", ""),
-                    tlp_color: ioc_data.get("tlp", "white"),
-                }
-
-                if existing:
-                    # Update existing IOC
-                    for key, value in ioc_defaults.items():
-                        setattr(existing, key, value)
-                    existing.times_seen += 1
-                    existing.last_seen_at = datetime.now(timezone.utc)
-                    updated_iocs += 1
-                else:
-                    # Create new IOC
-                    from app.models.io import IOC as IOCModel  # avoid circular import issues
-
-                    ioc_model = IOCModel(
-                        value=indicator_value,
-                        type=indicator_type,
-                        **{k: v for k, v in ioc_defaults.items() if k != "tlp_color"},
-                    )
-                    db.add(ioc_model)
-                    new_iocs += 1
-
-            except Exception as exc:
-                logger.warning("Failed to process MISP attribute: %s", exc)
-                skipped_iocs += 1
-
-        return {"new": new_iocs, "updated": updated_iocs, "skipped": skipped_iocs}
-
-    @staticmethod
-    def _extract_ioc_from_attribute(attr: dict) -> dict | None:
-        """Extract IOC value and type from a MISP attribute.
-
-        MISP attributes have a 'type' field (e.g., "ip-src", "domain-name",
-        "md5", "sha256", etc.) and a 'value' field.
-
-        Returns dict with 'type', 'value', 'category', 'description', 'malware_families', 'tlp'
-        or None if the attribute can't be parsed.
-        """
-        value = attr.get("value", "").strip()
-        if not value:
-            return None
-
-        attr_type = attr.get("type", "").lower()
-
-        # Map MISP types to RTIP IOC types
-        type_map = {
-            "ip-src": "ip",
-            "ip-dst": "ip",
-            "domain-name": "domain",
-            "email-dest": "email",
-            "email-src": "email",
-            "md5": "hash",
-            "sha256": "hash",
-            "sha1": "hash",
-            "filename": "filepath",
-            "url": "url",
-            "cidr": "network",
-            "artifice": "infrastructure",
-            "account": "account",
-            "mutex": "artifact",
-            "registry-key": "artifact",
-            "user-agent": "artifact",
-        }
-
-        ioc_type = type_map.get(attr_type, "ioc")
-        category = attr.get("category", "Unknown")
-        tlp = attr.get("info_sharing", "white")  # TLP color
-
-        # Get to identifiers fromGalaxies if available
-        malware_families = []
-        threat_actor = ""
-
-        # Check for galaxy references (simplified)
-        if "Galaxy" in attr:
-            for galaxy in attr.get("Galaxy", []):
-                malware_families.extend(galaxy.get("name", []) or [])
-                threat_actor = galaxy.get(" ThreatActor", "") or threat_actor
-
-        description = attr.get("comment", "") or ""
-
-        return {
-            "type": ioc_type,
-            "value": value,
-            "category": category,
-            "description": description,
-            "malware_families": malware_families,
-            "threat_actor": threat_actor,
-            "tlp": tlp,
-        }
-
-    @staticmethod
-    def _map_misp_severity(distribution: str) -> str:
-        """Map MISP distribution/ TLP to RTIP severity.
-
-        MISP uses TLP colors (red, amber, green, white) for sharing.
-        We map these to RTIP severity levels.
-        """
-        tlp_map = {
-            "red": "critical",
-            "amber": "high",
-            "green": "medium",
-            "white": "low",
-        }
-        return tlp_map.get(distribution.lower(), "low")
+                external_id = parsed.pop("external_id", None)
+                yield CollectedRecord(
+                    kind="ioc",
+                    data=parsed,
+                    external_id=external_id,
+                    published_at=parsed.get("last_seen_at"),
+                )

@@ -18,21 +18,33 @@ export function SearchResults() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     api<SearchResults>(`/search?q=${encodeURIComponent(q)}`)
-      .then(setResults)
-      .catch(() => setResults(null))
-      .finally(() => setLoading(false));
+      .then((r) => {
+        if (!cancelled) setResults(r);
+      })
+      .catch(() => {
+        if (!cancelled) setResults(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [q]);
 
   if (loading) return <Spinner label={`Searching for “${q}”…`} />;
   if (!results) return <EmptyState message="Search failed" />;
 
-  // Safely check if all result arrays are empty
-  const empty =
-    Object.values(results ?? {}).every(
-      (arr) => !arr || (Array.isArray(arr) && arr.length === 0),
-    );
+  const alerts = results.alerts ?? [];
+  const vulnerabilities = results.vulnerabilities ?? [];
+  const breaches = results.breaches ?? [];
+  const news = results.news ?? [];
+  const iocs = results.iocs ?? [];
+
+  const empty = [alerts, vulnerabilities, breaches, news, iocs].every((arr) => arr.length === 0);
 
   return (
     <div className="space-y-4">
@@ -42,11 +54,11 @@ export function SearchResults() {
 
       {empty && <Card><EmptyState message="No matching intelligence found across any module." /></Card>}
 
-      {results?.alerts?.length > 0 && (
+      {alerts.length > 0 && (
         <Card>
-          <CardHeader title={`Alerts (${results?.alerts?.length ?? 0})`} />
+          <CardHeader title={`Alerts (${alerts.length})`} />
           <ul className="divide-y divide-ink-600">
-            {results.alerts.map((a) => (
+            {alerts.map((a) => (
               <li key={a.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <SeverityBadge severity={a.severity} />
                 <span className="min-w-0 flex-1 truncate text-ink-100">{a.title}</span>
@@ -57,11 +69,11 @@ export function SearchResults() {
         </Card>
       )}
 
-      {results?.vulnerabilities?.length > 0 && (
+      {vulnerabilities.length > 0 && (
         <Card>
-          <CardHeader title={`Vulnerabilities (${results?.vulnerabilities?.length ?? 0})`} />
+          <CardHeader title={`Vulnerabilities (${vulnerabilities.length})`} />
           <ul className="divide-y divide-ink-600">
-            {results.vulnerabilities.map((v) => (
+            {vulnerabilities.map((v) => (
               <li key={v.cve_id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <SeverityBadge severity={v.severity ?? "informational"} />
                 <Link to={`/vulnerabilities?q=${v.cve_id}`} className="font-mono text-xs text-accent hover:underline">{v.cve_id}</Link>
@@ -73,11 +85,11 @@ export function SearchResults() {
         </Card>
       )}
 
-      {results?.breaches?.length > 0 && (
+      {breaches.length > 0 && (
         <Card>
-          <CardHeader title={`Breach incidents (${results?.breaches?.length ?? 0})`} />
+          <CardHeader title={`Breach incidents (${breaches.length})`} />
           <ul className="divide-y divide-ink-600">
-            {results.breaches.map((b, i) => (
+            {breaches.map((b, i) => (
               <li key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <StatusBadge status={b.verification} />
                 <span className="text-ink-100">{b.organization}</span>
@@ -88,11 +100,27 @@ export function SearchResults() {
         </Card>
       )}
 
-      {results?.news?.length > 0 && (
+      {iocs.length > 0 && (
         <Card>
-          <CardHeader title={`News (${results?.news?.length ?? 0})`} />
+          <CardHeader title={`IOCs (${iocs.length})`} />
           <ul className="divide-y divide-ink-600">
-            {results.news.map((n) => (
+            {iocs.map((ioc, i) => (
+              <li key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <span className="w-16 shrink-0 text-2xs uppercase tracking-wider text-ink-500">{ioc.type}</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-100">{ioc.value}</span>
+                <span className="tabular-nums text-2xs text-ink-400">{(ioc.confidence * 100).toFixed(0)}%</span>
+                <span className="text-2xs text-ink-500">via {ioc.source}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {news.length > 0 && (
+        <Card>
+          <CardHeader title={`News (${news.length})`} />
+          <ul className="divide-y divide-ink-600">
+            {news.map((n) => (
               <li key={n.headline} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <span className="text-ink-100 truncate">{n.headline}</span>
                 <span className="text-xs text-white/60">{n.publisher}</span>
