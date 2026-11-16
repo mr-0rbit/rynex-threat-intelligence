@@ -15,6 +15,7 @@ interface SourceItem {
   total_records_collected: number;
   collection_interval_minutes: number;
   commercial_use_status: string;
+  api_key_required: boolean;
   api_key_configured: boolean;
 }
 
@@ -134,6 +135,11 @@ export function Sources() {
                       <td className="px-5 py-3.5 font-mono">
                         <p className="text-xs font-bold text-white leading-tight">{s.name}</p>
                         <p className="text-[10px] text-accent mt-0.5">{s.slug}</p>
+                        {s.api_key_required && (
+                          <p className={`mt-1 text-[10px] ${s.api_key_configured ? "text-emerald-400" : "text-amber-400"}`}>
+                            {s.api_key_configured ? "API key configured" : "API key required"}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3.5">
                         <span className="rounded bg-ink-800 border border-ink-700 px-2 py-0.5 text-2xs font-mono capitalize text-ink-300">

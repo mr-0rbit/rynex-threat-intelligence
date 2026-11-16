@@ -72,6 +72,7 @@ class ThreatFoxCollector(BaseCollector):
     description = "Platform for sharing IOCs of malware-associated infrastructure, run by abuse.ch."
     auth_method = "api_key_header"
     api_key_setting = "THREATFOX_AUTH_KEY"
+    api_key_required = True
     commercial_use_status = "fair_use"
     terms_notes = (
         "Free community API under abuse.ch Fair Use Principles; Auth-Key (free) REQUIRED. "

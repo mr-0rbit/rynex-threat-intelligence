@@ -51,6 +51,7 @@ class BaseCollector(ABC):
     description: str = ""
     auth_method: str = "none"  # none|api_key_header|api_key_query|bearer
     api_key_setting: str | None = None  # env var NAME only; value resolved at runtime
+    api_key_required: bool = False
     commercial_use_status: str = "unknown"  # permitted|attribution_required|unknown|restricted
     terms_notes: str | None = None
     rate_limit_notes: str | None = None

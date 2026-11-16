@@ -52,6 +52,7 @@ class URLhausCollector(BaseCollector):
     description = "Crowd-sourced feed of URLs distributing malware, operated by abuse.ch."
     auth_method = "api_key_header"
     api_key_setting = "URLHAUS_AUTH_KEY"
+    api_key_required = True
     commercial_use_status = "permitted"
     terms_notes = (
         "Free for any purpose with attribution; API v1 requires a free Auth-Key "

@@ -56,5 +56,16 @@ def get_connector(slug: str) -> BaseCollector | None:
     return None
 
 
+def has_configured_api_key(slug: str) -> bool:
+    """Return whether a connector's configured key is present, without exposing it."""
+    connector = get_connector(slug)
+    return bool(connector and connector.api_key)
+
+
+def connector_requires_api_key(slug: str) -> bool:
+    connector = get_connector(slug)
+    return bool(connector and connector.api_key_required)
+
+
 def all_connectors() -> list[BaseCollector]:
     return [cls(api_key=_connector_key(cls)) for cls in COLLECTOR_CLASSES]

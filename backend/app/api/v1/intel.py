@@ -233,6 +233,8 @@ async def alert_report_pdf(
 
 @router.get("/sources")
 async def list_sources(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    from app.collectors.registry import connector_requires_api_key, has_configured_api_key
+
     sources = (await db.execute(select(IntelligenceSource).order_by(IntelligenceSource.name))).scalars().all()
     return {
         "total": len(sources),
@@ -249,7 +251,8 @@ async def list_sources(db: AsyncSession = Depends(get_db), user: User = Depends(
                 "total_records_collected": s.total_records_collected,
                 "collection_interval_minutes": s.collection_interval_minutes,
                 "commercial_use_status": s.commercial_use_status,
-                "api_key_configured": s.api_key_setting is not None,
+                "api_key_required": connector_requires_api_key(s.slug),
+                "api_key_configured": has_configured_api_key(s.slug),
             }
             for s in sources
         ]
