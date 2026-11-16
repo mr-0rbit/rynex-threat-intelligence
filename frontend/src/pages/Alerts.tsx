@@ -1,15 +1,32 @@
-/* Alerts.tsx — alert management with a live WebSocket feed.
+/* Alerts.tsx — alert management with a live WebSocket feed and fallback polling.
  *
  * The banner subscribes to /api/v1/ws/alerts (same-origin, token in query).
- * With default filters active, arriving alerts auto-refresh the list; with
- * filters applied they only surface in the banner so the table stays stable.
- * Connection drops auto-reconnect with capped backoff.
+ * If the socket disconnects or fails handshake, it falls back to background
+ * polling and auto-reconnects with exponential backoff.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FileDown, X } from "lucide-react";
-import { api, createAlertSocket, downloadFile } from "../api/client";
-import { Card, EmptyState, SeverityBadge, Spinner, StatusBadge, timeAgo } from "../components/ui";
+import {
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  FileDown,
+  RefreshCw,
+  TriangleAlert,
+  Wifi,
+  WifiOff,
+  X,
+} from "lucide-react";
+import { api, createAlertSocket, downloadFile, tryRefresh } from "../api/client";
+import {
+  Badge,
+  Card,
+  EmptyState,
+  SeverityBadge,
+  Spinner,
+  StatusBadge,
+  timeAgo,
+} from "../components/ui";
 
 interface AlertItem {
   id: string;
@@ -67,7 +84,7 @@ export function Alerts() {
 
   useEffect(load, [load]);
 
-  // ----- live feed (WebSocket; refs keep the effect mount-only) -----
+  // ----- live feed (WebSocket + polling fallback) -----
   const [liveState, setLiveState] = useState<LiveState>("connecting");
   const [liveEvents, setLiveEvents] = useState<LiveAlert[]>([]);
   const [bannerVisible, setBannerVisible] = useState(true);
@@ -76,6 +93,19 @@ export function Alerts() {
   loadRef.current = load;
   const filterActiveRef = useRef(Boolean(severity || status));
   filterActiveRef.current = Boolean(severity || status);
+
+  // Fallback polling when WebSocket is offline
+  useEffect(() => {
+    if (liveState !== "offline") return;
+    const interval = setInterval(() => {
+      if (!filterActiveRef.current) {
+        loadRef.current();
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [liveState]);
+
+  const reconnectRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -88,42 +118,88 @@ export function Alerts() {
       if (!filterActiveRef.current) loadRef.current();
     };
 
-    const connect = () => {
+    const scheduleRetry = () => {
       if (cancelled) return;
-      ws = createAlertSocket();
+      attempts += 1;
+      const delay = Math.min(2000 * Math.pow(1.5, Math.min(attempts, 6)), 15000);
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      retryTimer = window.setTimeout(connect, delay);
+    };
+
+    const connect = async () => {
+      if (cancelled) return;
+      setLiveState("connecting");
+
+      try {
+        ws = await createAlertSocket();
+      } catch {
+        ws = null;
+      }
+
       if (!ws) {
         setLiveState("offline");
+        scheduleRetry();
         return;
       }
+
       ws.onopen = () => {
         attempts = 0;
         setLiveState("live");
       };
+
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data as string) as { type: string } & LiveAlert;
           if (msg.type === "connected") setLiveState("live");
           else if (msg.type === "alert") ingest(msg);
-          // "ping" keepalives need no handling
         } catch {
           /* ignore malformed frames */
         }
       };
-      ws.onclose = () => {
+
+      ws.onclose = async (ev) => {
         setLiveState("offline");
-        if (!cancelled && attempts < 5) {
-          attempts += 1;
-          retryTimer = window.setTimeout(connect, Math.min(1000 * 2 ** attempts, 15000));
+        // If closed with policy violation (1008), refresh access token
+        if (ev.code === 1008) {
+          try {
+            await tryRefresh();
+          } catch {
+            /* ignore */
+          }
         }
+        scheduleRetry();
       };
-      ws.onerror = () => ws?.close();
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    };
+
+    reconnectRef.current = () => {
+      attempts = 0;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      if (ws) {
+        try {
+          ws.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      connect();
     };
 
     connect();
+
     return () => {
       cancelled = true;
       if (retryTimer !== null) window.clearTimeout(retryTimer);
-      ws?.close();
+      if (ws) {
+        try {
+          ws.close();
+        } catch {
+          /* ignore */
+        }
+      }
     };
   }, []);
 
@@ -146,182 +222,334 @@ export function Alerts() {
 
   const liveDot =
     liveState === "live"
-      ? "bg-accent animate-pulse"
+      ? "bg-emerald-400 shadow-[0_0_8px_#10b981] animate-pulse"
       : liveState === "connecting"
-        ? "bg-ink-300 animate-pulse"
+        ? "bg-amber-400 animate-pulse"
         : "bg-ink-500";
+
   const liveLabel =
-    liveState === "live" ? "LIVE" : liveState === "connecting" ? "CONNECTING…" : "FEED OFFLINE — retrying";
+    liveState === "live" ? "STREAM LIVE" : liveState === "connecting" ? "CONNECTING…" : "FALLBACK POLLING";
+
+  const liveDescription =
+    liveState === "live"
+      ? "Subscribed to real-time WebSocket feed · streaming alerts as ingested."
+      : liveState === "connecting"
+        ? "Negotiating secure socket handshake…"
+        : "Real-time socket offline · Background auto-refresh active (every 15s).";
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-5">
+      {/* Page Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-white">Alert Management</h1>
-          <p className="text-xs text-ink-400">{total.toLocaleString()} alerts matching current filters</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-bold tracking-tight text-white font-mono flex items-center gap-2">
+              <TriangleAlert className="h-5 w-5 text-accent" />
+              Alert Management
+            </h1>
+            <Badge variant="cyan">{total.toLocaleString()} ALERTS</Badge>
+          </div>
+          <p className="mt-1 text-xs text-ink-400 font-sans">
+            Real-time correlated telemetry matching security detection rules and asset boundaries.
+          </p>
         </div>
-        <div className="flex gap-2">
-          <select
-            value={severity}
-            onChange={(e) => {
-              setSeverity(e.target.value);
-              setPage(0);
-            }}
-            className="rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200"
+
+        {/* Filter Selects */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative">
+            <select
+              value={severity}
+              onChange={(e) => {
+                setSeverity(e.target.value);
+                setPage(0);
+              }}
+              className="rounded-lg border border-ink-700/80 bg-ink-900/90 py-1.5 pl-3 pr-8 text-xs font-mono text-ink-200 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40 shadow-sm cursor-pointer"
+            >
+              {SEVERITIES.map((s) => (
+                <option key={s} value={s}>
+                  {s ? s.toUpperCase() : "All Severities"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative">
+            <select
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(0);
+              }}
+              className="rounded-lg border border-ink-700/80 bg-ink-900/90 py-1.5 pl-3 pr-8 text-xs font-mono text-ink-200 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40 shadow-sm cursor-pointer"
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s ? s.replace("_", " ").toUpperCase() : "All Statuses"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={load}
+            title="Refresh alert list"
+            className="flex items-center gap-1.5 rounded-lg border border-ink-700/80 bg-ink-900/90 px-3 py-1.5 text-xs font-mono font-medium text-ink-200 hover:border-accent hover:text-accent transition-colors"
           >
-            {SEVERITIES.map((s) => (
-              <option key={s} value={s}>{s ? s.toUpperCase() : "All severities"}</option>
-            ))}
-          </select>
-          <select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
-              setPage(0);
-            }}
-            className="rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200"
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>{s ? s.replace("_", " ") : "All statuses"}</option>
-            ))}
-          </select>
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
 
-      {/* ----- live feed banner ----- */}
+      {/* ----- Live feed / Polling banner ----- */}
       {bannerVisible && (
-        <Card className="p-3">
+        <div
+          className={`relative overflow-hidden rounded-xl border p-3.5 shadow-md backdrop-blur-md transition-all ${
+            liveState === "live"
+              ? "border-emerald-500/30 bg-gradient-to-r from-ink-900/95 via-emerald-500/[0.04] to-ink-900/95"
+              : liveState === "connecting"
+                ? "border-amber-500/30 bg-gradient-to-r from-ink-900/95 via-amber-500/[0.04] to-ink-900/95"
+                : "border-ink-700/80 bg-gradient-to-r from-ink-900/95 via-ink-850 to-ink-900/95"
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <span className={`flex h-2 w-2 shrink-0 rounded-full ${liveDot}`} />
-            <span className="shrink-0 text-2xs font-mono uppercase tracking-[0.14em] text-ink-200">{liveLabel}</span>
+            <span className={`flex h-2.5 w-2.5 shrink-0 rounded-full ${liveDot}`} />
+            <div className="flex items-center gap-1.5 shrink-0">
+              {liveState === "live" ? (
+                <Wifi className="h-3.5 w-3.5 text-emerald-400" />
+              ) : (
+                <WifiOff className="h-3.5 w-3.5 text-ink-400" />
+              )}
+              <span
+                className={`text-2xs font-mono uppercase tracking-[0.14em] font-bold ${
+                  liveState === "live"
+                    ? "text-emerald-400"
+                    : liveState === "connecting"
+                      ? "text-amber-400"
+                      : "text-ink-300"
+                }`}
+              >
+                {liveLabel}
+              </span>
+            </div>
+
             <div className="min-w-0 flex-1">
               {liveEvents.length === 0 ? (
-                <span className="text-2xs font-mono text-ink-400">
-                  {liveState === "live" ? "Streaming new alerts as they are ingested." : "Waiting for connection…"}
+                <span className="text-2xs font-mono text-ink-300">
+                  {liveDescription}
                 </span>
               ) : (
-                <ul className="space-y-0.5">
+                <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-0.5">
                   {liveEvents.map((ev) => (
-                    <li key={ev.id} className="flex items-center gap-2 overflow-hidden">
+                    <div
+                      key={ev.id}
+                      className="flex shrink-0 items-center gap-2 rounded-md border border-ink-700/70 bg-ink-950/80 px-2 py-1 shadow-sm"
+                    >
                       <SeverityBadge severity={ev.severity} />
-                      <span className="truncate text-2xs text-ink-200">{ev.title}</span>
-                      <span className="shrink-0 font-mono text-[10px] text-ink-500">{timeAgo(ev.detected_at)}</span>
-                    </li>
+                      <span className="max-w-[200px] truncate text-2xs text-ink-200 font-medium">
+                        {ev.title}
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] text-ink-400">
+                        {timeAgo(ev.detected_at)}
+                      </span>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
-            <button
-              onClick={load}
-              className="shrink-0 rounded-sm border border-ink-600 px-2 py-1 text-2xs uppercase tracking-wider text-ink-300 hover:border-accent hover:text-accent"
-            >
-              Refresh
-            </button>
+
+            {liveState === "offline" && (
+              <button
+                onClick={() => reconnectRef.current()}
+                title="Attempt to reconnect to live WebSocket"
+                className="shrink-0 rounded-lg border border-accent/40 bg-accent/15 px-2.5 py-1 text-2xs font-mono font-bold uppercase tracking-wider text-accent hover:bg-accent hover:text-black transition-all"
+              >
+                Reconnect
+              </button>
+            )}
+
             <button
               onClick={() => setBannerVisible(false)}
-              title="Hide live feed banner"
-              className="shrink-0 rounded-sm p-1 text-ink-500 hover:text-ink-200"
+              title="Dismiss live feed banner"
+              className="shrink-0 rounded-lg p-1 text-ink-400 hover:bg-ink-800 hover:text-ink-200 transition-colors"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
-        </Card>
+        </div>
       )}
 
       {downloadError && (
-        <Card className="border-accent/50 p-3 text-xs text-accent">{downloadError}</Card>
+        <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-3 text-xs text-rose-300 font-mono">
+          {downloadError}
+        </div>
       )}
 
       {loading ? (
-        <Spinner />
+        <Spinner label="Loading threat alerts…" />
       ) : items.length === 0 ? (
         <Card>
-          <EmptyState message="No alerts match. New intelligence will appear here automatically." />
+          <EmptyState message="No alerts match the current filter criteria." />
         </Card>
       ) : (
-        <div className="space-y-2">
-          {items.map((a) => (
-            <Card key={a.id} className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <button className="min-w-0 flex-1 text-left" onClick={() => setExpanded(expanded === a.id ? null : a.id)}>
-                  <div className="flex items-center gap-2">
-                    <SeverityBadge severity={a.severity} />
-                    <StatusBadge status={a.status} />
-                    <span className="text-[10px] uppercase tracking-wider text-ink-500">{a.category.replace(/_/g, " ")}</span>
-                    {a.occurrence_count > 1 && (
-                      <span className="rounded bg-ink-700/50 px-1.5 py-0.5 text-[10px] text-ink-300">
-                        ×{a.occurrence_count} evidence updates
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1.5 text-sm font-medium text-ink-100">{a.title}</p>
-                  <p className="mt-0.5 text-[11px] text-ink-400">
-                    Detected {timeAgo(a.detected_at)} · published {timeAgo(a.first_published_at)} · confidence{" "}
-                    {(a.confidence * 100).toFixed(0)}%
-                  </p>
-                </button>
-                <select
-                  value={a.status}
-                  onChange={(e) => updateStatus(a.id, e.target.value)}
-                  className="rounded border border-ink-600 bg-ink-950 px-2 py-1 text-xs text-ink-200"
-                >
-                  {STATUSES.filter(Boolean).map((s) => (
-                    <option key={s} value={s}>{s.replace("_", " ")}</option>
-                  ))}
-                </select>
-              </div>
-              {expanded === a.id && (
-                <div className="mt-3 space-y-2 border-t border-ink-600 pt-3 text-xs text-ink-300">
-                  {a.recommended_action && (
-                    <p>
-                      <span className="font-medium text-accent">Recommended action:</span> {a.recommended_action}
-                    </p>
-                  )}
-                  {a.evidence_sources && a.evidence_sources.length > 0 && (
-                    <p>
-                      <span className="font-medium text-ink-200">Evidence:</span>{" "}
-                      {a.evidence_sources.map((s, i) => (
-                        <span key={i}>
-                          {i > 0 && ", "}
-                          {s.url ? (
-                            <a href={s.url} target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">
-                              {s.source_slug}
-                            </a>
-                          ) : (
-                            s.source_slug
-                          )}
-                        </span>
-                      ))}
-                    </p>
-                  )}
-                  <div>
+        <div className="space-y-3">
+          {items.map((a) => {
+            const isExp = expanded === a.id;
+            return (
+              <div
+                key={a.id}
+                className={`overflow-hidden rounded-xl border transition-all duration-200 shadow-md ${
+                  isExp
+                    ? "border-accent/40 bg-ink-900/98 ring-1 ring-accent/20"
+                    : "border-ink-700/70 bg-ink-900/85 hover:border-ink-600/90"
+                }`}
+              >
+                <div className="p-4 sm:p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                     <button
-                      onClick={() => downloadReport(a.id)}
-                      disabled={downloading === a.id}
-                      className="inline-flex items-center gap-1.5 rounded-sm border border-ink-600 px-2.5 py-1.5 text-2xs uppercase tracking-wider text-ink-300 hover:border-accent hover:text-accent disabled:opacity-40"
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => setExpanded(isExp ? null : a.id)}
                     >
-                      <FileDown className="h-3.5 w-3.5" />
-                      {downloading === a.id ? "Exporting…" : "Download PDF report"}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <SeverityBadge severity={a.severity} />
+                        <StatusBadge status={a.status} />
+                        <span className="rounded bg-ink-800/80 border border-ink-700 px-2 py-0.5 text-[10px] uppercase font-mono tracking-wider text-ink-300">
+                          {a.category.replace(/_/g, " ")}
+                        </span>
+                        {a.occurrence_count > 1 && (
+                          <span className="rounded bg-accent/10 border border-accent/20 px-2 py-0.5 text-[10px] font-mono text-accent">
+                            ×{a.occurrence_count} events
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="mt-2 text-sm sm:text-base font-semibold text-white group-hover:text-accent transition-colors">
+                        {a.title}
+                      </p>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-4 text-2xs text-ink-400 font-mono">
+                        <span>Detected {timeAgo(a.detected_at)}</span>
+                        <span>·</span>
+                        <span>Published {timeAgo(a.first_published_at)}</span>
+                        <span>·</span>
+                        <div className="flex items-center gap-1.5">
+                          <span>Confidence</span>
+                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-ink-800">
+                            <div
+                              className="h-full rounded-full bg-accent"
+                              style={{ width: `${Math.round(a.confidence * 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-white font-semibold">
+                            {(a.confidence * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
                     </button>
+
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-start">
+                      <select
+                        value={a.status}
+                        onChange={(e) => updateStatus(a.id, e.target.value)}
+                        className="rounded-lg border border-ink-700/80 bg-ink-950 px-2.5 py-1.5 text-xs font-mono text-ink-200 focus:border-accent focus:outline-none"
+                      >
+                        {STATUSES.filter(Boolean).map((s) => (
+                          <option key={s} value={s}>
+                            {s.replace("_", " ").toUpperCase()}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        onClick={() => setExpanded(isExp ? null : a.id)}
+                        className="rounded-lg border border-ink-700/80 bg-ink-950 p-1.5 text-ink-400 hover:text-white transition-colors"
+                        aria-label={isExp ? "Collapse" : "Expand"}
+                      >
+                        {isExp ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Expanded Detail View */}
+                  {isExp && (
+                    <div className="mt-4 space-y-3.5 border-t border-ink-700/70 pt-4 text-xs font-sans">
+                      {a.recommended_action && (
+                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 text-amber-200">
+                          <p className="font-bold uppercase tracking-wider text-2xs text-amber-300 font-mono mb-1">
+                            Recommended Action / Mitigation
+                          </p>
+                          <p className="text-xs leading-relaxed">{a.recommended_action}</p>
+                        </div>
+                      )}
+
+                      {a.evidence_sources && a.evidence_sources.length > 0 && (
+                        <div>
+                          <p className="font-semibold uppercase tracking-wider text-2xs text-ink-400 font-mono mb-2">
+                            Correlated Evidence Feeds ({a.evidence_sources.length})
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {a.evidence_sources.map((s, idx) => (
+                              <div
+                                key={idx}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-950 px-2.5 py-1 text-2xs font-mono"
+                              >
+                                {s.url ? (
+                                  <a
+                                    href={s.url}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    className="flex items-center gap-1 text-accent hover:underline"
+                                  >
+                                    <span>{s.source_slug}</span>
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                ) : (
+                                  <span className="text-ink-300">{s.source_slug}</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="pt-2 flex items-center justify-between">
+                        <button
+                          onClick={() => downloadReport(a.id)}
+                          disabled={downloading === a.id}
+                          className="inline-flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3.5 py-2 text-xs font-mono font-bold uppercase tracking-wider text-accent hover:bg-accent hover:text-black transition-all shadow-[0_0_12px_rgba(0,212,255,0.15)] disabled:opacity-50"
+                        >
+                          <FileDown className="h-4 w-4" />
+                          <span>{downloading === a.id ? "Compiling PDF…" : "Export Incident PDF"}</span>
+                        </button>
+
+                        <span className="text-2xs text-ink-400 font-mono">
+                          UUID: {a.id}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </Card>
-          ))}
-          <div className="flex items-center justify-between text-xs text-ink-400">
-            <span>Page {page + 1}</span>
+              </div>
+            );
+          })}
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between pt-3 text-xs font-mono text-ink-400">
+            <span>
+              Page {page + 1} of {Math.max(1, Math.ceil(total / 25))} ({total.toLocaleString()} total)
+            </span>
             <div className="flex gap-2">
               <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="rounded border border-ink-600 px-3 py-1 disabled:opacity-30"
+                className="rounded-lg border border-ink-700/80 bg-ink-900 px-3 py-1.5 text-xs text-ink-200 hover:border-ink-500 disabled:opacity-30 disabled:pointer-events-none transition-colors"
               >
                 Previous
               </button>
               <button
                 disabled={(page + 1) * 25 >= total}
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded border border-ink-600 px-3 py-1 disabled:opacity-30"
+                className="rounded-lg border border-ink-700/80 bg-ink-900 px-3 py-1.5 text-xs text-ink-200 hover:border-ink-500 disabled:opacity-30 disabled:pointer-events-none transition-colors"
               >
                 Next
               </button>

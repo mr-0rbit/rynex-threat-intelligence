@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { History, RefreshCw, Rss } from "lucide-react";
 import { api } from "../api/client";
-import { Card, EmptyState, Spinner, StatusBadge, timeAgo } from "../components/ui";
+import { Badge, Card, CardHeader, EmptyState, Spinner, StatusBadge, timeAgo } from "../components/ui";
 
 interface SourceItem {
   slug: string;
@@ -63,113 +63,173 @@ export function Sources() {
       await api(`/sources/${slug}/collect`, { method: "POST" });
       load();
     } catch {
-      // health status reflects the failure; reload anyway
       load();
     } finally {
       setBusy(null);
     }
   };
 
-  if (loading) return <Spinner />;
+  if (loading) return <Spinner label="Probing feed collector states…" />;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold text-white">Intelligence Sources</h1>
-        <p className="text-xs text-ink-400">Collection health, schedules, and manual triggers</p>
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-bold tracking-tight text-white font-mono flex items-center gap-2">
+              <Rss className="h-5 w-5 text-accent" />
+              Intelligence Collectors &amp; Feeds
+            </h1>
+            <Badge variant="cyan">{sources.length} REGISTERED SOURCES</Badge>
+          </div>
+          <p className="mt-1 text-xs text-ink-400 font-sans">
+            Automated intelligence ingest engines, collection health telemetry, and scheduled synchronizations.
+          </p>
+        </div>
+
+        <button
+          onClick={load}
+          className="flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900 px-3.5 py-2 text-xs font-mono font-medium text-ink-200 hover:border-accent hover:text-accent transition-colors shadow-sm"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          <span>Refresh Feeds</span>
+        </button>
       </div>
 
       {sources.length === 0 ? (
-        <Card><EmptyState message="No sources registered yet. Sources register on first collection." /></Card>
-      ) : (
-        <Card className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-ink-600 text-[11px] uppercase tracking-wider text-ink-400">
-                <th className="px-4 py-2.5">Source</th>
-                <th className="px-4 py-2.5">Category</th>
-                <th className="px-4 py-2.5">Health</th>
-                <th className="px-4 py-2.5">Records</th>
-                <th className="px-4 py-2.5">Interval</th>
-                <th className="px-4 py-2.5">Last success</th>
-                <th className="px-4 py-2.5">Last failure</th>
-                <th className="px-4 py-2.5">Terms</th>
-                <th className="px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-600">
-              {sources.map((s) => (
-                <tr
-                  key={s.slug}
-                  onClick={() => setSelected(s.slug)}
-                  className={`cursor-pointer hover:bg-ink-700/20 ${selected === s.slug ? "bg-accent/5" : ""}`}
-                >
-                  <td className="px-4 py-2.5">
-                    <p className="text-xs font-medium text-ink-100">{s.name}</p>
-                    <p className="text-[10px] text-ink-500">{s.slug}</p>
-                  </td>
-                  <td className="px-4 py-2.5 text-xs capitalize text-ink-300">{s.category}</td>
-                  <td className="px-4 py-2.5"><StatusBadge status={s.health_status} /></td>
-                  <td className="px-4 py-2.5 tabular-nums text-ink-200">{s.total_records_collected.toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-xs text-ink-400">{s.collection_interval_minutes}m</td>
-                  <td className="px-4 py-2.5 text-xs text-ink-400">{timeAgo(s.last_success_at)}</td>
-                  <td className="px-4 py-2.5 text-xs text-ink-400">
-                    {s.consecutive_failures > 0 ? <span className="text-white">{s.consecutive_failures} in a row</span> : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-[11px] text-ink-400">{s.commercial_use_status}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    <button
-                      disabled={busy === s.slug}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        trigger(s.slug);
-                      }}
-                      className="inline-flex items-center gap-1.5 rounded border border-ink-600 px-2.5 py-1 text-[11px] text-accent hover:border-accent/50 disabled:opacity-40"
-                    >
-                      <RefreshCw className={`h-3 w-3 ${busy === s.slug ? "animate-spin" : ""}`} />
-                      Collect
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <Card>
+          <EmptyState message="No intelligence sources registered yet." />
         </Card>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-ink-700/80 bg-gradient-to-b from-ink-900/95 to-ink-950/95 shadow-xl backdrop-blur-md">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-sans">
+              <thead>
+                <tr className="border-b border-ink-700/80 bg-ink-950/70 text-[10px] font-bold uppercase tracking-wider text-ink-400 font-mono">
+                  <th className="px-5 py-3">Source Name</th>
+                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3">Health Status</th>
+                  <th className="px-4 py-3">Collected Records</th>
+                  <th className="px-4 py-3">Interval</th>
+                  <th className="px-4 py-3">Last Ingest</th>
+                  <th className="px-4 py-3">Failure Counter</th>
+                  <th className="px-4 py-3">License</th>
+                  <th className="px-5 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-700/50">
+                {sources.map((s) => {
+                  const isSel = selected === s.slug;
+                  return (
+                    <tr
+                      key={s.slug}
+                      onClick={() => setSelected(s.slug)}
+                      className={`cursor-pointer transition-colors ${
+                        isSel
+                          ? "bg-accent/10 border-l-2 border-l-accent"
+                          : "hover:bg-ink-800/40"
+                      }`}
+                    >
+                      <td className="px-5 py-3.5 font-mono">
+                        <p className="text-xs font-bold text-white leading-tight">{s.name}</p>
+                        <p className="text-[10px] text-accent mt-0.5">{s.slug}</p>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="rounded bg-ink-800 border border-ink-700 px-2 py-0.5 text-2xs font-mono capitalize text-ink-300">
+                          {s.category}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <StatusBadge status={s.health_status} />
+                      </td>
+                      <td className="px-4 py-3.5 font-mono tabular-nums text-white font-semibold">
+                        {s.total_records_collected.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3.5 font-mono text-ink-400">
+                        {s.collection_interval_minutes}m
+                      </td>
+                      <td className="px-4 py-3.5 font-mono text-ink-400 whitespace-nowrap">
+                        {timeAgo(s.last_success_at)}
+                      </td>
+                      <td className="px-4 py-3.5 font-mono text-xs">
+                        {s.consecutive_failures > 0 ? (
+                          <span className="text-rose-400 font-bold bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.5 rounded">
+                            {s.consecutive_failures} fails
+                          </span>
+                        ) : (
+                          <span className="text-emerald-400">0</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 text-2xs font-mono text-ink-400">
+                        {s.commercial_use_status}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <button
+                          disabled={busy === s.slug}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            trigger(s.slug);
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-2xs font-mono font-bold uppercase text-accent hover:bg-accent hover:text-black transition-all shadow-sm disabled:opacity-40"
+                        >
+                          <RefreshCw className={`h-3 w-3 ${busy === s.slug ? "animate-spin" : ""}`} />
+                          <span>Collect</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
+      {/* Selected Collector Job History */}
       {selected && jobs.length > 0 && (
         <Card>
-          <div className="border-b border-ink-600 px-4 py-3">
-            <h3 className="text-sm font-semibold text-ink-100">Collection history — {selected}</h3>
-          </div>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-ink-600 text-[11px] uppercase tracking-wider text-ink-400">
-                <th className="px-4 py-2">Started</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Trigger</th>
-                <th className="px-4 py-2">Duration</th>
-                <th className="px-4 py-2">Received</th>
-                <th className="px-4 py-2">Stored</th>
-                <th className="px-4 py-2">Rejected</th>
-                <th className="px-4 py-2">Error</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-600">
-              {jobs.map((j) => (
-                <tr key={j.id} className="text-xs">
-                  <td className="px-4 py-2 text-ink-300">{timeAgo(j.started_at)}</td>
-                  <td className="px-4 py-2"><StatusBadge status={j.status === "success" ? "healthy" : "failing"} /></td>
-                  <td className="px-4 py-2 text-ink-400">{j.trigger}</td>
-                  <td className="px-4 py-2 tabular-nums text-ink-400">{j.duration_seconds != null ? `${j.duration_seconds.toFixed(1)}s` : "—"}</td>
-                  <td className="px-4 py-2 tabular-nums text-ink-300">{j.records_received}</td>
-                  <td className="px-4 py-2 tabular-nums text-accent">{j.records_stored}</td>
-                  <td className="px-4 py-2 tabular-nums text-ink-400">{j.records_rejected}</td>
-                  <td className="max-w-72 truncate px-4 py-2 text-white" title={j.error ?? ""}>{j.error ?? "—"}</td>
+          <CardHeader
+            title={`Collection Job History: ${selected}`}
+            subtitle="Execution run logs, duration, and record storage counts"
+            icon={History}
+          />
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-sans">
+              <thead>
+                <tr className="border-b border-ink-700/80 bg-ink-950/70 text-[10px] font-bold uppercase tracking-wider text-ink-400 font-mono">
+                  <th className="px-5 py-3">Started</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Trigger Method</th>
+                  <th className="px-4 py-3">Duration</th>
+                  <th className="px-4 py-3">Received</th>
+                  <th className="px-4 py-3">Stored</th>
+                  <th className="px-4 py-3">Rejected</th>
+                  <th className="px-5 py-3">Diagnostic Message</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-ink-700/50">
+                {jobs.map((j) => (
+                  <tr key={j.id} className="hover:bg-ink-800/40 transition-colors font-mono text-xs">
+                    <td className="px-5 py-3 text-ink-300">{timeAgo(j.started_at)}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={j.status === "success" ? "healthy" : "failing"} />
+                    </td>
+                    <td className="px-4 py-3 text-ink-400 capitalize">{j.trigger}</td>
+                    <td className="px-4 py-3 tabular-nums text-ink-300">
+                      {j.duration_seconds != null ? `${j.duration_seconds.toFixed(1)}s` : "—"}
+                    </td>
+                    <td className="px-4 py-3 tabular-nums text-ink-300">{j.records_received}</td>
+                    <td className="px-4 py-3 tabular-nums text-accent font-semibold">{j.records_stored}</td>
+                    <td className="px-4 py-3 tabular-nums text-ink-500">{j.records_rejected}</td>
+                    <td className="px-5 py-3 max-w-xs truncate text-ink-400 font-sans" title={j.error ?? ""}>
+                      {j.error ?? "Completed with 0 errors"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
     </div>

@@ -7,9 +7,9 @@
  */
 
 import { useEffect, useState, type FormEvent } from "react";
-import { KeyRound, Lock, ShieldCheck, ShieldOff } from "lucide-react";
+import { KeyRound, Lock, ShieldCheck, ShieldOff, UserCog } from "lucide-react";
 import { api, storeAccessToken } from "../api/client";
-import { Card, CardHeader } from "../components/ui";
+import { Badge, Card, CardHeader } from "../components/ui";
 import { useAuth } from "../auth";
 
 interface ChangePasswordBody {
@@ -41,7 +41,6 @@ export function Account() {
   const [disableCode, setDisableCode] = useState("");
 
   useEffect(() => {
-    // leave enrollment state clean on unmount secrets are short-lived anyway
     return () => setConfirmCode("");
   }, []);
 
@@ -64,15 +63,14 @@ export function Account() {
         body: JSON.stringify(body),
       });
       if (resp?.access_token) {
-        // token_version was bumped server-side — swap in the fresh token
         storeAccessToken(resp.access_token);
       }
       setCurrentPw("");
       setNewPw("");
       setNewPw2("");
-      setPwMsg({ ok: true, text: "Password changed. Other sessions were signed out." });
+      setPwMsg({ ok: true, text: "Password changed successfully. All other active sessions terminated." });
     } catch (err) {
-      setPwMsg({ ok: false, text: err instanceof Error ? err.message : "Password change failed" });
+      setPwMsg({ ok: false, text: err instanceof Error ? err.message : "Password update failed" });
     } finally {
       setPwBusy(false);
     }
@@ -86,7 +84,7 @@ export function Account() {
       setEnrollSecret(resp.secret);
       setEnrollUri(resp.otpauth_uri);
     } catch (err) {
-      setMfaMsg({ ok: false, text: err instanceof Error ? err.message : "MFA setup failed" });
+      setMfaMsg({ ok: false, text: err instanceof Error ? err.message : "MFA enrollment failed" });
     } finally {
       setMfaBusy(false);
     }
@@ -101,10 +99,10 @@ export function Account() {
       setEnrollSecret(null);
       setEnrollUri(null);
       setConfirmCode("");
-      setMfaMsg({ ok: true, text: "MFA enabled. You will be asked for a code at next login." });
+      setMfaMsg({ ok: true, text: "Multi-factor authentication confirmed and active." });
       refreshUser();
     } catch (err) {
-      setMfaMsg({ ok: false, text: err instanceof Error ? err.message : "Confirmation failed" });
+      setMfaMsg({ ok: false, text: err instanceof Error ? err.message : "Code confirmation failed" });
     } finally {
       setMfaBusy(false);
     }
@@ -117,77 +115,141 @@ export function Account() {
     try {
       await api("/auth/mfa/disable", { method: "POST", body: JSON.stringify({ code: disableCode.trim() }) });
       setDisableCode("");
-      setMfaMsg({ ok: true, text: "MFA disabled." });
+      setMfaMsg({ ok: true, text: "MFA disabled on this account." });
       refreshUser();
     } catch (err) {
-      setMfaMsg({ ok: false, text: err instanceof Error ? err.message : "Disable failed" });
+      setMfaMsg({ ok: false, text: err instanceof Error ? err.message : "MFA disable failed" });
     } finally {
       setMfaBusy(false);
     }
   };
 
   const inputCls =
-    "w-full rounded border border-ink-600 bg-ink-950 py-2 px-3 text-xs text-ink-100 placeholder:text-ink-500 font-mono focus:border-accent focus:bg-ink-900 focus:outline-none focus:ring-1 focus:ring-accent/40 transition-colors";
-  const labelCls = "block text-2xs font-medium uppercase tracking-[0.12em] text-ink-300 font-mono mb-1.5";
+    "w-full rounded-xl border border-ink-700/80 bg-ink-950 py-2.5 px-3.5 text-xs text-ink-100 placeholder:text-ink-600 font-mono focus:border-accent focus:bg-ink-900 focus:outline-none focus:ring-2 focus:ring-accent/25 transition-all shadow-inner";
+  const labelCls = "block text-[11px] font-bold uppercase tracking-wider text-ink-300 font-mono mb-1.5";
   const btnCls =
-    "rounded bg-accent px-4 py-2 text-2xs font-bold uppercase tracking-[0.14em] text-black transition-colors hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed";
+    "rounded-xl bg-accent px-5 py-2.5 text-xs font-mono font-bold uppercase tracking-wider text-black transition-all hover:bg-white hover:shadow-[0_0_15px_rgba(0,212,255,0.4)] disabled:opacity-40 disabled:cursor-not-allowed";
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold text-white">Account</h1>
-        <p className="text-xs text-ink-400">Credentials and multi-factor authentication</p>
+    <div className="mx-auto max-w-3xl space-y-6">
+      {/* Header */}
+      <div className="border-b border-ink-700/60 pb-5">
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-xl font-bold tracking-tight text-white font-mono flex items-center gap-2">
+            <UserCog className="h-5 w-5 text-accent" />
+            Security &amp; Operator Profile
+          </h1>
+          <Badge variant="cyan">ACCOUNT PREFERENCES</Badge>
+        </div>
+        <p className="mt-1 text-xs text-ink-400 font-sans">
+          Manage platform authentication credentials, TOTP hardware multi-factor tokens, and session authority.
+        </p>
       </div>
 
+      {/* Operator Identity Card */}
       <Card>
-        <CardHeader title="Identity" />
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 px-4 py-3 text-xs">
-          <dt className="text-ink-400 font-mono uppercase text-2xs tracking-wider">Email</dt>
-          <dd className="text-ink-100 font-mono">{user?.email}</dd>
-          <dt className="text-ink-400 font-mono uppercase text-2xs tracking-wider">Role</dt>
-          <dd className="text-accent font-mono uppercase">{user?.role}</dd>
-          <dt className="text-ink-400 font-mono uppercase text-2xs tracking-wider">MFA</dt>
-          <dd className="font-mono">{user?.mfa_enabled ? <span className="text-accent">enabled</span> : <span className="text-ink-400">disabled</span>}</dd>
-        </dl>
+        <CardHeader title="Operator Identity" subtitle="Active session authorization details" />
+        <div className="p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-ink-700/80 bg-ink-950/70 p-4">
+              <p className="text-[10px] font-mono uppercase tracking-wider text-ink-400">EMAIL ADDRESS</p>
+              <p className="mt-1 text-sm font-bold text-white font-mono truncate">{user?.email}</p>
+            </div>
+            <div className="rounded-xl border border-ink-700/80 bg-ink-950/70 p-4">
+              <p className="text-[10px] font-mono uppercase tracking-wider text-ink-400">ACCESS ROLE</p>
+              <div className="mt-1 flex items-center gap-2">
+                <Badge variant="cyan">{user?.role || "ANALYST"}</Badge>
+              </div>
+            </div>
+            <div className="rounded-xl border border-ink-700/80 bg-ink-950/70 p-4">
+              <p className="text-[10px] font-mono uppercase tracking-wider text-ink-400">TOTP PROTECTION</p>
+              <div className="mt-1">
+                {user?.mfa_enabled ? (
+                  <Badge variant="success">ENFORCED &amp; ACTIVE</Badge>
+                ) : (
+                  <Badge variant="warning">DISABLED — RECOMMENDED</Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </Card>
 
+      {/* Change Password Card */}
       <Card>
-        <CardHeader title="Change password" subtitle="Minimum 12 characters with upper, lower and digit" />
-        <form onSubmit={changePassword} className="max-w-md space-y-3 px-4 py-4">
+        <CardHeader title="Update Security Credentials" subtitle="Minimum 12 characters with upper, lower, and digit combinations" />
+        <form onSubmit={changePassword} className="max-w-lg space-y-4 p-5">
           <div>
-            <label className={labelCls}>Current password</label>
-            <input type="password" required autoComplete="current-password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} className={inputCls} />
+            <label className={labelCls}>Current Password</label>
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={currentPw}
+              onChange={(e) => setCurrentPw(e.target.value)}
+              className={inputCls}
+              placeholder="••••••••••••"
+            />
           </div>
           <div>
-            <label className={labelCls}>New password</label>
-            <input type="password" required autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} className={inputCls} />
+            <label className={labelCls}>New Password</label>
+            <input
+              type="password"
+              required
+              autoComplete="new-password"
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+              className={inputCls}
+              placeholder="••••••••••••"
+            />
           </div>
           <div>
-            <label className={labelCls}>Confirm new password</label>
-            <input type="password" required autoComplete="new-password" value={newPw2} onChange={(e) => setNewPw2(e.target.value)} className={inputCls} />
+            <label className={labelCls}>Confirm New Password</label>
+            <input
+              type="password"
+              required
+              autoComplete="new-password"
+              value={newPw2}
+              onChange={(e) => setNewPw2(e.target.value)}
+              className={inputCls}
+              placeholder="••••••••••••"
+            />
           </div>
-          <button type="submit" disabled={pwBusy} className={`${btnCls} inline-flex items-center gap-1.5`}>
-            <KeyRound className="h-3.5 w-3.5" />
-            {pwBusy ? "Updating…" : "Change password"}
+
+          <button type="submit" disabled={pwBusy} className={`${btnCls} inline-flex items-center gap-2`}>
+            <KeyRound className="h-4 w-4" />
+            <span>{pwBusy ? "Rotating Secret…" : "Change Access Password"}</span>
           </button>
-          {pwMsg && <p className={`text-xs font-mono ${pwMsg.ok ? "text-accent" : "text-ink-200 border-l-2 border-accent pl-2"}`}>{pwMsg.text}</p>}
+
+          {pwMsg && (
+            <div
+              className={`rounded-xl border p-3 text-xs font-mono ${
+                pwMsg.ok
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                  : "border-rose-500/40 bg-rose-500/10 text-rose-300"
+              }`}
+            >
+              {pwMsg.text}
+            </div>
+          )}
         </form>
       </Card>
 
+      {/* Multi-Factor Authentication Card */}
       <Card>
         <CardHeader
-          title="Multi-factor authentication"
-          subtitle="TOTP via any authenticator app (Google Authenticator, Aegis, 1Password…)"
+          title="Hardware Multi-Factor Authentication (TOTP)"
+          subtitle="Compatible with Google Authenticator, 1Password, YubiKey, Aegis, and Bitwarden"
         />
-        <div className="px-4 py-4">
+        <div className="p-5">
           {user?.mfa_enabled ? (
-            <form onSubmit={disableMfa} className="max-w-md space-y-3">
-              <p className="flex items-center gap-2 text-xs text-ink-300">
-                <ShieldCheck className="h-4 w-4 text-accent" />
-                MFA is active on this account. Disabling requires a currently valid code.
-              </p>
+            <form onSubmit={disableMfa} className="max-w-lg space-y-4">
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 flex items-center gap-2.5 text-xs font-mono text-emerald-300">
+                <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0" />
+                <span>Multi-factor authentication is currently enforcing cryptographic session security.</span>
+              </div>
               <div>
-                <label className={labelCls}>Authenticator code</label>
+                <label className={labelCls}>Enter Current 6-Digit Authenticator Code</label>
                 <input
                   type="text"
                   required
@@ -195,33 +257,40 @@ export function Account() {
                   maxLength={6}
                   value={disableCode}
                   onChange={(e) => setDisableCode(e.target.value.replace(/[^0-9]/g, ""))}
-                  className={`${inputCls} tracking-[0.5em] text-center`}
+                  className={`${inputCls} tracking-[0.5em] text-center text-sm`}
                   placeholder="000000"
                 />
               </div>
-              <button type="submit" disabled={mfaBusy} className={`${btnCls} inline-flex items-center gap-1.5`}>
-                <ShieldOff className="h-3.5 w-3.5" />
-                {mfaBusy ? "Working…" : "Disable MFA"}
+              <button
+                type="submit"
+                disabled={mfaBusy}
+                className="rounded-xl border border-rose-500/40 bg-rose-500/15 px-5 py-2.5 text-xs font-mono font-bold uppercase tracking-wider text-rose-300 hover:bg-rose-500 hover:text-white transition-all disabled:opacity-40 flex items-center gap-2"
+              >
+                <ShieldOff className="h-4 w-4" />
+                <span>{mfaBusy ? "Disabling…" : "Deactivate MFA"}</span>
               </button>
             </form>
           ) : enrollSecret ? (
-            <form onSubmit={confirmMfa} className="max-w-md space-y-3">
-              <p className="text-xs text-ink-300">
-                1. Add the secret below to your authenticator app (manual entry).<br />
-                2. Enter the 6-digit code it generates to activate MFA.
+            <form onSubmit={confirmMfa} className="max-w-lg space-y-4">
+              <p className="text-xs text-ink-300 font-sans leading-relaxed">
+                Scan or enter the seed key below into your authenticator app, then confirm the generated 6-digit code.
               </p>
-              <div className="rounded border border-ink-600 bg-ink-950 p-3">
-                <p className={labelCls}>Secret (base32)</p>
-                <p className="break-all font-mono text-sm text-accent">{enrollSecret}</p>
+              <div className="rounded-xl border border-ink-700/80 bg-ink-950 p-4 space-y-2">
+                <p className={labelCls}>Authenticator Secret Seed (Base32)</p>
+                <p className="break-all font-mono text-sm font-bold text-accent select-all bg-ink-900 p-2 rounded-lg border border-ink-800">
+                  {enrollSecret}
+                </p>
                 {enrollUri && (
                   <>
-                    <p className={`${labelCls} mt-3`}>otpauth URI (if your app supports it)</p>
-                    <p className="break-all font-mono text-[10px] text-ink-400">{enrollUri}</p>
+                    <p className={`${labelCls} pt-2`}>otpauth URI</p>
+                    <p className="break-all font-mono text-2xs text-ink-400 select-all bg-ink-900 p-2 rounded-lg border border-ink-800">
+                      {enrollUri}
+                    </p>
                   </>
                 )}
               </div>
               <div>
-                <label className={labelCls}>Verification code</label>
+                <label className={labelCls}>Enter 6-Digit Verification Code</label>
                 <input
                   type="text"
                   required
@@ -230,27 +299,38 @@ export function Account() {
                   maxLength={6}
                   value={confirmCode}
                   onChange={(e) => setConfirmCode(e.target.value.replace(/[^0-9]/g, ""))}
-                  className={`${inputCls} tracking-[0.5em] text-center`}
+                  className={`${inputCls} tracking-[0.5em] text-center text-sm`}
                   placeholder="000000"
                 />
               </div>
-              <button type="submit" disabled={mfaBusy} className={`${btnCls} inline-flex items-center gap-1.5`}>
-                <Lock className="h-3.5 w-3.5" />
-                {mfaBusy ? "Verifying…" : "Confirm & enable MFA"}
+              <button type="submit" disabled={mfaBusy} className={`${btnCls} inline-flex items-center gap-2`}>
+                <Lock className="h-4 w-4" />
+                <span>{mfaBusy ? "Activating…" : "Confirm & Enable MFA"}</span>
               </button>
             </form>
           ) : (
-            <div className="max-w-md space-y-3">
-              <p className="text-xs text-ink-300">
-                MFA is currently disabled. Add a second factor so a stolen password alone cannot access this console.
+            <div className="max-w-lg space-y-4">
+              <p className="text-xs text-ink-300 font-sans leading-relaxed">
+                Strengthen your threat analyst account against credential stuffing and compromised passwords with time-based one-time passcodes (TOTP).
               </p>
-              <button onClick={startMfa} disabled={mfaBusy} className={`${btnCls} inline-flex items-center gap-1.5`}>
-                <ShieldCheck className="h-3.5 w-3.5" />
-                {mfaBusy ? "Generating…" : "Set up MFA"}
+              <button onClick={startMfa} disabled={mfaBusy} className={`${btnCls} inline-flex items-center gap-2`}>
+                <ShieldCheck className="h-4 w-4" />
+                <span>{mfaBusy ? "Generating Secret…" : "Set Up MFA Protection"}</span>
               </button>
             </div>
           )}
-          {mfaMsg && <p className={`mt-3 text-xs font-mono ${mfaMsg.ok ? "text-accent" : "text-ink-200 border-l-2 border-accent pl-2"}`}>{mfaMsg.text}</p>}
+
+          {mfaMsg && (
+            <div
+              className={`mt-4 rounded-xl border p-3 text-xs font-mono ${
+                mfaMsg.ok
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                  : "border-rose-500/40 bg-rose-500/10 text-rose-300"
+              }`}
+            >
+              {mfaMsg.text}
+            </div>
+          )}
         </div>
       </Card>
     </div>

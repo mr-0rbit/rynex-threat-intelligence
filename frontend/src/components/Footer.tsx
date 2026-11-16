@@ -19,30 +19,30 @@ export function Footer() {
       />
 
       {/* Main Container */}
-      <div className="relative z-10 mx-auto max-w-7xl rounded-xl border border-ink-700/90 bg-ink-900/95 p-6 sm:p-8 shadow-2xl backdrop-blur-xl overflow-hidden">
+      <div className="relative z-10 mx-auto max-w-7xl rounded-2xl border border-ink-700/80 bg-gradient-to-b from-ink-900/95 to-ink-950/98 p-6 sm:p-10 shadow-2xl backdrop-blur-2xl overflow-hidden">
         {/* Subtle accent blur corner highlights */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -top-24 -left-20 h-64 w-80 rounded-full bg-accent/5 blur-3xl"
+          className="pointer-events-none absolute -top-24 -left-20 h-64 w-80 rounded-full bg-accent/8 blur-3xl"
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -bottom-24 -right-20 h-64 w-80 rounded-full bg-accent/5 blur-3xl"
+          className="pointer-events-none absolute -bottom-24 -right-20 h-64 w-80 rounded-full bg-accent/8 blur-3xl"
         />
 
         {/* Top Section: Brand + Navigation Grid */}
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
           {/* Brand & Newsletter Column */}
           <div className="lg:col-span-5 max-w-lg">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded border border-ink-600 bg-ink-950 p-1.5 shadow-[0_0_12px_rgba(0,212,255,0.15)] ring-1 ring-accent/20">
+            <div className="flex items-center gap-3.5 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-accent/30 bg-ink-950 p-2 shadow-[0_0_15px_rgba(0,212,255,0.2)] ring-1 ring-accent/20">
                 <img
                   src="/logo.png"
                   alt="Rynex Technologies"
-                  className="h-full w-full object-contain drop-shadow-[0_0_6px_rgba(0,212,255,0.4)]"
+                  className="h-full w-full object-contain drop-shadow-[0_0_8px_rgba(0,212,255,0.5)]"
                 />
               </div>
-              <span className="text-sm font-bold tracking-[0.08em] text-white font-mono">
+              <span className="text-sm font-bold tracking-[0.1em] text-white font-mono bg-gradient-to-r from-white via-ink-100 to-accent bg-clip-text text-transparent">
                 Rynex Technologies
               </span>
             </div>
@@ -50,19 +50,19 @@ export function Footer() {
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white font-mono leading-snug mb-4">
               Detect, Exploit &amp; Secure.
               <br />
-              <span className="text-accent drop-shadow-[0_0_12px_rgba(0,212,255,0.35)]">
-                Enterprise Cyber Defense.
+              <span className="text-accent drop-shadow-[0_0_12px_rgba(0,212,255,0.4)]">
+                Enterprise Threat Intelligence.
               </span>
             </h2>
 
             {/* Newsletter */}
             {subscribed ? (
-              <div className="flex items-center gap-2 rounded border border-accent/40 bg-accent/10 px-3.5 py-2 text-xs font-mono text-accent">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+              <div className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-4 py-3 text-xs font-mono text-accent">
+                <span className="h-2 w-2 rounded-full bg-accent animate-pulse shadow-[0_0_8px_#00d4ff]" />
                 <span>Thank you. Security advisory dispatch confirmed.</span>
               </div>
             ) : (
-              <form onSubmit={handleSubscribe} className="relative flex w-full max-w-md items-center rounded border border-ink-600 bg-ink-950 p-1 shadow-inner focus-within:border-accent focus-within:ring-1 focus-within:ring-accent/40 transition-colors">
+              <form onSubmit={handleSubscribe} className="relative flex w-full max-w-md items-center rounded-xl border border-ink-700/80 bg-ink-950/90 p-1.5 shadow-inner focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25 transition-all">
                 <input
                   type="email"
                   required
@@ -74,19 +74,19 @@ export function Footer() {
                 />
                 <button
                   type="submit"
-                  className="rounded bg-accent px-4 py-1.5 text-xs font-mono font-bold uppercase tracking-wider text-black transition-all hover:bg-white hover:shadow-[0_0_12px_rgba(0,212,255,0.4)] shrink-0"
+                  className="rounded-lg bg-accent px-5 py-2 text-xs font-mono font-bold uppercase tracking-wider text-black transition-all hover:bg-white hover:shadow-[0_0_15px_rgba(0,212,255,0.4)] shrink-0"
                 >
                   Subscribe
                 </button>
               </form>
             )}
             <p className="mt-2.5 text-[11px] text-ink-400 font-mono leading-relaxed">
-              Security briefs &amp; zero-day advisories. Unsubscribe anytime.
+              Real-time threat advisories &amp; zero-day intelligence. Unsubscribe anytime.
             </p>
           </div>
 
           {/* Navigation Links Column */}
-          <div className="lg:col-span-7 rounded-lg border border-ink-700/80 bg-ink-850/80 p-5 sm:p-6 backdrop-blur-md">
+          <div className="lg:col-span-7 rounded-xl border border-ink-700/80 bg-ink-900/60 p-6 backdrop-blur-md">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
               {/* Column 1: Services */}
               <div>
@@ -311,17 +311,17 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar: Copyright, Status, Social Links */}
-        <div className="relative z-10 mt-8 pt-5 border-t border-ink-700/80 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono">
+        <div className="relative z-10 mt-8 pt-5 border-t border-ink-700/60 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono">
           <div className="flex flex-wrap items-center gap-3 text-xs text-ink-400">
             <span>© 2026 Rynex Technologies. All Rights Reserved.</span>
-            <span className="inline-flex items-center gap-2 rounded border border-accent/30 bg-accent/10 px-2.5 py-1 text-2xs text-ink-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_8px_#00d4ff] animate-pulse" />
-              <span>All systems operational</span>
+            <span className="inline-flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-1 text-2xs text-ink-200">
+              <span className="h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_#00d4ff] animate-pulse" />
+              <span>All Systems Operational</span>
             </span>
           </div>
 
           {/* Social Links */}
-          <div className="flex items-center gap-1.5 rounded border border-ink-700/80 bg-ink-950 px-2.5 py-1">
+          <div className="flex items-center gap-1.5 rounded-xl border border-ink-700/80 bg-ink-950 p-1">
             {/* Discord */}
             <a
               href="https://discord.gg/V8CYUKCSKJ"

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Newspaper, Search, Tag } from "lucide-react";
 import { api } from "../api/client";
-import { Card, EmptyState, Spinner, timeAgo } from "../components/ui";
+import { Badge, Card, EmptyState, Spinner, timeAgo } from "../components/ui";
 import { Pagination } from "./Vulnerabilities";
 
 interface Article {
@@ -39,52 +39,118 @@ export function News() {
   useEffect(load, [load]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-5">
+      {/* Page Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold text-white">Cybersecurity News</h1>
-          <p className="text-xs text-ink-400">{total.toLocaleString()} articles from publisher RSS feeds</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-bold tracking-tight text-white font-mono flex items-center gap-2">
+              <Newspaper className="h-5 w-5 text-accent" />
+              Cybersecurity News &amp; Bulletins
+            </h1>
+            <Badge variant="cyan">{total.toLocaleString()} ARTICLES</Badge>
+          </div>
+          <p className="mt-1 text-xs text-ink-400 font-sans">
+            Real-time multi-publisher RSS aggregation covering zero-day disclosures, exploits, and campaigns.
+          </p>
         </div>
-        <div className="flex gap-2">
-          <input
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setPage(0); }}
-            placeholder="Search headlines…"
-            className="w-52 rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200 placeholder:text-ink-500"
-          />
-          <input
-            value={publisher}
-            onChange={(e) => { setPublisher(e.target.value); setPage(0); }}
-            placeholder="Publisher…"
-            className="w-40 rounded-sm border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-xs text-ink-200 placeholder:text-ink-500"
-          />
+
+        {/* Filter Inputs */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-400" />
+            <input
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Search headlines…"
+              className="w-52 rounded-lg border border-ink-700/80 bg-ink-900/90 py-1.5 pl-9 pr-3 text-xs font-mono text-ink-100 placeholder:text-ink-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40 shadow-sm"
+            />
+          </div>
+
+          <div className="relative">
+            <input
+              value={publisher}
+              onChange={(e) => {
+                setPublisher(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Filter publisher…"
+              className="w-44 rounded-lg border border-ink-700/80 bg-ink-900/90 py-1.5 px-3 text-xs font-mono text-ink-200 placeholder:text-ink-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40 shadow-sm"
+            />
+          </div>
         </div>
       </div>
 
       {loading ? (
-        <Spinner />
+        <Spinner label="Aggregating news dispatches…" />
       ) : items.length === 0 ? (
-        <Card><EmptyState message="No articles match." /></Card>
+        <Card>
+          <EmptyState message="No news articles found matching your query." />
+        </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {items.map((a) => (
-            <Card key={a.url} className="p-4 hover:border-accent/30">
+            <div
+              key={a.url}
+              className="group rounded-xl border border-ink-700/70 bg-gradient-to-b from-ink-900/90 to-ink-950/90 p-5 shadow-lg backdrop-blur-md transition-all hover:border-accent/40 hover:shadow-[0_0_20px_rgba(0,212,255,0.08)]"
+            >
               <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <a href={a.url} target="_blank" rel="noreferrer noopener" className="text-sm font-medium text-ink-100 hover:text-accent">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="rounded bg-accent/15 border border-accent/30 px-2 py-0.5 text-2xs font-mono font-bold text-accent">
+                      {a.publisher}
+                    </span>
+                    <span className="text-2xs font-mono text-ink-400">
+                      Published {timeAgo(a.published_at)}
+                    </span>
+                  </div>
+
+                  <a
+                    href={a.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-base font-semibold text-white group-hover:text-accent transition-colors block"
+                  >
                     {a.headline}
                   </a>
-                  <p className="mt-1 line-clamp-2 text-xs text-ink-400">{a.summary}</p>
-                  <p className="mt-1.5 text-[11px] text-ink-500">
-                    {a.publisher} · published {timeAgo(a.published_at)} · collected {timeAgo(a.collected_at)}
-                  </p>
+
+                  {a.summary && (
+                    <p className="mt-2 line-clamp-2 text-xs text-ink-300 font-sans leading-relaxed">
+                      {a.summary}
+                    </p>
+                  )}
+
+                  {a.categories && a.categories.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {a.categories.map((c, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 rounded bg-ink-800/80 border border-ink-700/80 px-2 py-0.5 text-[10px] font-mono text-ink-400"
+                        >
+                          <Tag className="h-2.5 w-2.5 text-accent" />
+                          <span>{c}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <a href={a.url} target="_blank" rel="noreferrer noopener" className="shrink-0 text-ink-400 hover:text-accent">
+
+                <a
+                  href={a.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="shrink-0 p-2 text-ink-400 hover:text-accent hover:bg-ink-800 rounded-lg transition-colors"
+                  title="Read external article"
+                >
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </div>
-            </Card>
+            </div>
           ))}
+
           <Pagination page={page} setPage={setPage} total={total} pageSize={25} />
         </div>
       )}

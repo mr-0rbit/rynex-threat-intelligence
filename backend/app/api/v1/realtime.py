@@ -26,22 +26,35 @@ def _authenticate(token: str | None) -> tuple[uuid.UUID, int] | None:
         return None
     try:
         payload = pyjwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-    except pyjwt.PyJWTError:
+    except pyjwt.PyJWTError as e:
+        logger.warning("websocket jwt decode failed: %s", e)
         return None
     if payload.get("type") != "access":
+        logger.warning("websocket token rejected: token type is %s (expected 'access')", payload.get("type"))
         return None
     try:
         return uuid.UUID(payload["sub"]), int(payload.get("ver", 0))
-    except (KeyError, ValueError):
+    except (KeyError, ValueError) as e:
+        logger.warning("websocket token payload invalid: %s", e)
         return None
 
 
 @router.websocket("/ws/alerts")
 async def ws_alerts(websocket: WebSocket, token: str | None = Query(None)) -> None:
+    # Resolve token from query param, query string, cookie, or authorization header
+    if not token:
+        token = websocket.query_params.get("token") or websocket.cookies.get("access_token")
+        if not token and "authorization" in websocket.headers:
+            auth_hdr = websocket.headers.get("authorization", "")
+            if auth_hdr.lower().startswith("bearer "):
+                token = auth_hdr[7:].strip()
+
     principal = _authenticate(token)
     if principal is None:
+        logger.warning("websocket alert connection rejected: missing or invalid authentication token")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+
     user_id, token_version = principal
     from app.core.database import AsyncSessionLocal
     from app.models import Organization, User
@@ -57,12 +70,19 @@ async def ws_alerts(websocket: WebSocket, token: str | None = Query(None)) -> No
                 or organization is None
                 or not organization.enabled
             ):
+                logger.warning(
+                    "websocket alert connection rejected: user active=%s or org enabled=%s mismatch",
+                    getattr(user, "is_active", None),
+                    getattr(organization, "enabled", None),
+                )
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return
             organization_id = str(user.organization_id)
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        logger.exception("websocket authentication session error: %s", e)
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         return
+
     await websocket.accept()
     queue = await events.subscribe()
     try:

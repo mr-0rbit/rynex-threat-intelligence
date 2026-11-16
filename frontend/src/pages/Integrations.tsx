@@ -6,10 +6,11 @@ import {
   Lock,
   Radio,
   Server,
+  ShieldCheck,
   Terminal,
 } from "lucide-react";
 import { api } from "../api/client";
-import { Badge, Card } from "../components/ui";
+import { Badge } from "../components/ui";
 
 interface AuditVerifyResult {
   valid: boolean;
@@ -108,38 +109,43 @@ export function Integrations() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="border-b border-ink-800 pb-4">
-        <h1 className="text-xl font-bold tracking-tight text-white font-mono flex items-center gap-2">
-          <Radio className="h-5 w-5 text-accent" />
-          Enterprise Integrations: TAXII, EDLs & SIEM
-        </h1>
-        <p className="mt-1 text-xs text-ink-400 font-mono">
-          Connect firewalls, EDRs, SIEMs, and threat sharing communities to RTIP via standardized protocols.
+      <div className="border-b border-ink-700/60 pb-5">
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-xl font-bold tracking-tight text-white font-mono flex items-center gap-2">
+            <Radio className="h-5 w-5 text-accent" />
+            Enterprise Integrations: TAXII, EDLs &amp; SIEM
+          </h1>
+          <Badge variant="cyan">ENTERPRISE CONNECTIVITY</Badge>
+        </div>
+        <p className="mt-1 text-xs text-ink-400 font-sans">
+          Connect next-gen firewalls, EDR platforms, SIEMs, and threat sharing communities to RTIP via standardized protocols.
         </p>
       </div>
 
       {/* Audit Integrity Status Banner */}
-      <Card className="border-ink-700 bg-ink-900/60 p-4">
+      <div className="relative overflow-hidden rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-ink-900/90 to-ink-950 p-5 shadow-lg backdrop-blur-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded border ${
-              auditStatus?.valid
-                ? "bg-success/15 border-success/40 text-success"
-                : "bg-critical/15 border-critical/40 text-critical"
-            }`}>
-              <Lock className="h-5 w-5" />
+          <div className="flex items-center gap-3.5">
+            <div
+              className={`p-2.5 rounded-xl border shadow-inner ${
+                auditStatus?.valid
+                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                  : "bg-rose-500/15 border-rose-500/40 text-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.2)]"
+              }`}
+            >
+              {auditStatus?.valid ? <ShieldCheck className="h-6 w-6" /> : <Lock className="h-6 w-6" />}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-white font-mono">
-                  Cryptographic Audit Trail Integrity
+                  Cryptographic Audit Trail Ledger
                 </h3>
                 <Badge variant={auditStatus?.valid ? "success" : "critical"}>
-                  {auditStatus?.valid ? "HMAC CHAIN INTACT" : "TAMPER DETECTED"}
+                  {auditStatus?.valid ? "HMAC HASH CHAIN VERIFIED" : "TAMPER ANOMALY DETECTED"}
                 </Badge>
               </div>
-              <p className="text-xs text-ink-400 font-mono mt-0.5">
-                {auditStatus?.total_records} audit log entries cryptographically verified with HMAC-SHA256 hash chaining.
+              <p className="text-xs text-ink-300 font-sans mt-1">
+                {auditStatus?.total_records ?? 0} historical operations cryptographically anchored with SHA-256 block verification.
               </p>
             </div>
           </div>
@@ -147,16 +153,16 @@ export function Integrations() {
             type="button"
             onClick={runAuditVerification}
             disabled={verifying}
-            className="px-3 py-1.5 rounded border border-ink-700 bg-ink-800 text-xs font-mono text-ink-200 hover:text-white hover:border-accent transition-colors"
+            className="rounded-lg border border-ink-700 bg-ink-950 px-4 py-2 text-xs font-mono font-bold text-ink-200 hover:border-accent hover:text-accent transition-all shadow-sm shrink-0"
           >
-            {verifying ? "Verifying…" : "Re-Verify Ledger"}
+            {verifying ? "Auditing Ledger…" : "Re-Verify Chain"}
           </button>
         </div>
-      </Card>
+      </div>
 
       {/* Section 1: TAXII 2.1 */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Server className="h-4 w-4 text-accent" />
             <h2 className="text-sm font-bold uppercase tracking-wider text-white font-mono">
@@ -164,34 +170,43 @@ export function Integrations() {
             </h2>
             <Badge variant="cyan">STIX 2.1</Badge>
           </div>
-          <span className="text-[11px] font-mono text-ink-400">
-            Discovery: <code className="text-accent">{origin}/taxii2/</code>
+          <span className="text-2xs font-mono text-ink-400">
+            Discovery Root: <code className="text-accent">{origin}/taxii2/</code>
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {taxiiCollections.map((col) => (
-            <Card key={col.id} className="p-4 bg-ink-900/80 border-ink-800 flex flex-col justify-between">
+            <div
+              key={col.id}
+              className="rounded-xl border border-ink-700/80 bg-gradient-to-b from-ink-900/90 to-ink-950/90 p-5 shadow-lg flex flex-col justify-between hover:border-ink-600 transition-colors"
+            >
               <div>
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-white font-mono">{col.title}</h4>
-                  <Badge variant="neutral">{col.media}</Badge>
+                  <Badge variant="neutral" size="xs">
+                    {col.media}
+                  </Badge>
                 </div>
-                <p className="text-[11px] text-ink-400 font-mono mt-2 break-all bg-ink-950 p-2 rounded border border-ink-800">
+                <div className="mt-3 p-2.5 rounded-lg border border-ink-800 bg-ink-950 font-mono text-[11px] text-ink-300 break-all select-all">
                   {col.url}
-                </p>
+                </div>
               </div>
-              <div className="mt-4 flex items-center justify-end gap-2">
+              <div className="mt-4 flex items-center justify-end">
                 <button
                   type="button"
                   onClick={() => copyToClipboard(col.url, col.id)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-ink-700 bg-ink-800 text-xs font-mono text-ink-200 hover:text-white hover:border-accent"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-950 px-3 py-1.5 text-xs font-mono text-ink-200 hover:border-accent hover:text-accent transition-colors"
                 >
-                  {copiedKey === col.id ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-                  <span>{copiedKey === col.id ? "Copied" : "Copy TAXII URL"}</span>
+                  {copiedKey === col.id ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                  <span>{copiedKey === col.id ? "URL Copied" : "Copy TAXII URL"}</span>
                 </button>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       </div>
@@ -199,41 +214,50 @@ export function Integrations() {
       {/* Section 2: Firewall External Dynamic Lists */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Flame className="h-4 w-4 text-warning" />
+          <Flame className="h-4 w-4 text-amber-400" />
           <h2 className="text-sm font-bold uppercase tracking-wider text-white font-mono">
-            Next-Gen Firewall External Dynamic Lists (EDL)
+            Next-Gen Firewall External Dynamic Lists (EDLs)
           </h2>
-          <Badge variant="warning">High-Speed Plaintext</Badge>
+          <Badge variant="warning">High-Throughput Plaintext</Badge>
         </div>
 
         <div className="space-y-3">
           {edlEndpoints.map((edl) => (
-            <Card key={edl.id} className="p-4 bg-ink-900/80 border-ink-800">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                <div>
+            <div
+              key={edl.id}
+              className="rounded-xl border border-ink-700/80 bg-gradient-to-b from-ink-900/90 to-ink-950/90 p-5 shadow-lg"
+            >
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h4 className="text-xs font-bold text-white font-mono">{edl.title}</h4>
-                    <Badge variant="neutral">{edl.type}</Badge>
+                    <Badge variant="neutral" size="xs">
+                      {edl.type}
+                    </Badge>
                   </div>
-                  <p className="text-xs text-ink-400 mt-1">{edl.desc}</p>
-                  <p className="text-[10px] text-ink-500 font-mono mt-0.5">Compatible with: {edl.target}</p>
+                  <p className="text-xs text-ink-300 font-sans mt-1">{edl.desc}</p>
+                  <p className="text-2xs text-ink-500 font-mono mt-0.5">Compatible with: {edl.target}</p>
                 </div>
 
-                <div className="flex items-center gap-2 mt-2 md:mt-0 shrink-0">
+                <div className="shrink-0">
                   <button
                     type="button"
                     onClick={() => copyToClipboard(edl.url, edl.id)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-ink-700 bg-ink-800 text-xs font-mono text-ink-200 hover:text-white hover:border-accent"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-950 px-3 py-1.5 text-xs font-mono text-ink-200 hover:border-accent hover:text-accent transition-colors"
                   >
-                    {copiedKey === edl.id ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-                    <span>{copiedKey === edl.id ? "Copied URL" : "Copy EDL Feed URL"}</span>
+                    {copiedKey === edl.id ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                    <span>{copiedKey === edl.id ? "Copied" : "Copy Feed URL"}</span>
                   </button>
                 </div>
               </div>
-              <div className="mt-3 p-2 bg-ink-950 rounded border border-ink-800 font-mono text-[11px] text-accent truncate">
+              <div className="mt-3 p-2.5 rounded-lg border border-ink-800 bg-ink-950 font-mono text-[11px] text-accent truncate select-all">
                 {edl.url}
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       </div>
@@ -243,52 +267,56 @@ export function Integrations() {
         <div className="flex items-center gap-2">
           <Terminal className="h-4 w-4 text-accent" />
           <h2 className="text-sm font-bold uppercase tracking-wider text-white font-mono">
-            SIEM & Syslog Log Forwarding
+            SIEM &amp; Syslog Event Forwarding
           </h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="p-4 bg-ink-900/80 border-ink-800 space-y-3">
+          <div className="rounded-xl border border-ink-700/80 bg-gradient-to-b from-ink-900/90 to-ink-950/90 p-5 shadow-lg space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-white font-mono">ArcSight CEF Log Export</h4>
-              <Badge variant="neutral">Common Event Format</Badge>
+              <h4 className="text-xs font-bold text-white font-mono">ArcSight CEF Log Stream</h4>
+              <Badge variant="neutral" size="xs">
+                Common Event Format
+              </Badge>
             </div>
-            <p className="text-xs text-ink-400">
-              Micro Focus ArcSight, Splunk, and QRadar compatible event stream.
+            <p className="text-xs text-ink-400 font-sans">
+              Micro Focus ArcSight, Splunk, and IBM QRadar compatible alert event stream.
             </p>
-            <div className="p-2 bg-ink-950 rounded border border-ink-800 font-mono text-[11px] text-ink-300 break-all">
+            <div className="p-2.5 rounded-lg border border-ink-800 bg-ink-950 font-mono text-[11px] text-ink-300 break-all select-all">
               {`${origin}/api/v1/admin/audit-logs/export?format=cef`}
             </div>
             <button
               type="button"
               onClick={() => copyToClipboard(`${origin}/api/v1/admin/audit-logs/export?format=cef`, "cef-url")}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-ink-700 bg-ink-800 text-xs font-mono text-ink-200 hover:text-white hover:border-accent"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-950 px-3 py-1.5 text-xs font-mono text-ink-200 hover:border-accent hover:text-accent transition-colors"
             >
-              {copiedKey === "cef-url" ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+              {copiedKey === "cef-url" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
               <span>Copy CEF Endpoint</span>
             </button>
-          </Card>
+          </div>
 
-          <Card className="p-4 bg-ink-900/80 border-ink-800 space-y-3">
+          <div className="rounded-xl border border-ink-700/80 bg-gradient-to-b from-ink-900/90 to-ink-950/90 p-5 shadow-lg space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-white font-mono">RFC 5424 Syslog Export</h4>
-              <Badge variant="neutral">Standard Syslog</Badge>
+              <Badge variant="neutral" size="xs">
+                Standard Syslog
+              </Badge>
             </div>
-            <p className="text-xs text-ink-400">
-              Standard RFC 5424 syslog stream for rsyslog, syslog-ng, and Logstash.
+            <p className="text-xs text-ink-400 font-sans">
+              Standard RFC 5424 syslog stream for rsyslog, syslog-ng, and Logstash ingest.
             </p>
-            <div className="p-2 bg-ink-950 rounded border border-ink-800 font-mono text-[11px] text-ink-300 break-all">
+            <div className="p-2.5 rounded-lg border border-ink-800 bg-ink-950 font-mono text-[11px] text-ink-300 break-all select-all">
               {`${origin}/api/v1/admin/audit-logs/export?format=syslog`}
             </div>
             <button
               type="button"
               onClick={() => copyToClipboard(`${origin}/api/v1/admin/audit-logs/export?format=syslog`, "syslog-url")}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-ink-700 bg-ink-800 text-xs font-mono text-ink-200 hover:text-white hover:border-accent"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-950 px-3 py-1.5 text-xs font-mono text-ink-200 hover:border-accent hover:text-accent transition-colors"
             >
-              {copiedKey === "syslog-url" ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+              {copiedKey === "syslog-url" ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
               <span>Copy Syslog Endpoint</span>
             </button>
-          </Card>
+          </div>
         </div>
       </div>
     </div>

@@ -237,10 +237,17 @@ export async function downloadFile(path: string, filename: string): Promise<void
 }
 
 /** Authenticated WebSocket for the live alert feed. */
-export function createAlertSocket(): WebSocket | null {
+export async function createAlertSocket(): Promise<WebSocket | null> {
+  let token = getAccessToken();
+  if (!token) {
+    token = await tryRefresh();
+  }
+  if (!token) {
+    return null;
+  }
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   const host = window.location.host; // same origin; vite proxies /api in dev
-  const url = `${proto}//${host}/api/v1/ws/alerts?token=${encodeURIComponent(accessToken || "")}`;
+  const url = `${proto}//${host}/api/v1/ws/alerts?token=${encodeURIComponent(token)}`;
   try {
     const ws = new WebSocket(url);
     return ws;

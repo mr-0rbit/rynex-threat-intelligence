@@ -6,8 +6,8 @@
 
 **A centralized, continuously updated Cyber Threat Intelligence platform for Rynex Technologies.**
 
-![Status](https://img.shields.io/badge/status-live%20and%20verified-2ea44f?style=for-the-badge)
-![Tests](https://img.shields.io/badge/tests-113%20passing-00D4FF?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-implemented%20%26%20tested-2ea44f?style=for-the-badge)
+![Tests](https://img.shields.io/badge/tests-128%20passing-00D4FF?style=for-the-badge)
 ![Fake Data](https://img.shields.io/badge/fake%20data-none-critical?style=for-the-badge)
 ![CI](https://github.com/mr-0rbit/rynex-threat-intelligence/actions/workflows/ci.yml/badge.svg?branch=master)
 
@@ -34,7 +34,7 @@
 
 RTIP aggregates intelligence from **legitimate, publicly accessible free/community-tier sources**, correlates it, **scores confidence transparently**, and generates **deduplicated, actionable alerts** - so analysts spend time on threats, not on noise.
 
-> **Status: live and verified.** Real intelligence currently in the platform: **20,857 IOCs**, **1,769 CISA KEV vulnerabilities**, **100 ransomware breach claims (100 with victim domains)**, **419 threat actor profiles**, **277 news articles**, and **99 deduplicated alerts**. 113 backend tests pass. Full React dashboard operational.
+> **Status: implemented and tested.** The platform ingests and correlates live public threat intelligence. Record counts vary by deployment and collection time, so this README does not treat a local database snapshot as a current platform-wide total. The backend suite has **128 passing tests**; the React dashboard is operational.
 
 ### Why RTIP?
 
@@ -55,26 +55,27 @@ RTIP aggregates intelligence from **legitimate, publicly accessible free/communi
 
 <table width="100%">
   <tr><th width="72%">Capability</th><th width="28%">Status</th></tr>
-  <tr><td>FastAPI backend with JWT auth + RBAC (<code>admin</code> / <code>analyst</code> / <code>viewer</code>)</td><td align="center">Tested</td></tr>
-  <tr><td>Normalized PostgreSQL schema (SQLAlchemy 2.0, Alembic migration <code>913c69783841</code>)</td><td align="center">Tested</td></tr>
+  <tr><td>FastAPI backend with JWT authentication, organization-scoped authorization and platform-admin controls</td><td align="center">Tested</td></tr>
+  <tr><td>Normalized PostgreSQL schema (SQLAlchemy 2.0; Alembic head <code>72d4cb69a113</code>)</td><td align="center">Tested</td></tr>
   <tr><td>Collector framework (async, retries, backoff, rate limits, checkpoints, per-source health)</td><td align="center">Tested</td></tr>
   <tr><td>Deterministic confidence engine (no AI inside the score)</td><td align="center">Tested</td></tr>
   <tr><td>Alert engine (rule-based, fingerprint dedup, baseline suppression, DB-override rules)</td><td align="center">Tested</td></tr>
+  <tr><td>Organization tenancy, OIDC SSO, STIX 2.1 / TAXII 2.1, firewall EDLs and MITRE ATT&amp;CK views</td><td align="center">Tested</td></tr>
   <tr><td>Asset inventory + watchlists with severity escalation</td><td align="center">Live verified</td></tr>
   <tr><td>WebSocket live alert bus</td><td align="center">Live verified</td></tr>
-  <tr><td>Celery beat scheduling</td><td align="center">Live</td></tr>
+  <tr><td>Celery worker + beat scheduling, Redis-backed events and Prometheus metrics</td><td align="center">Implemented</td></tr>
 </table>
 
 ### Intelligence Sources
 
 <table width="100%">
   <tr><th width="45%">Source</th><th width="35%">Type</th><th width="20%">Status</th></tr>
-  <tr><td><b>CISA KEV</b> (1,769 entries)</td><td>Known exploited vulnerabilities</td><td align="center">Live</td></tr>
-  <tr><td><b>Ransomware.live</b> v2 API (100 recent claims, victim domains + gang claims)</td><td>Breach claims (claims only)</td><td align="center">Live</td></tr>
-  <tr><td><b>blocklist.de</b> (20,852 attack-source IPs, keyless)</td><td>Abuse / brute-force IPs</td><td align="center">Live</td></tr>
+  <tr><td><b>CISA KEV</b></td><td>Known exploited vulnerabilities</td><td align="center">Live</td></tr>
+  <tr><td><b>Ransomware.live</b> v2 API</td><td>Breach claims (claims only; not independently verified)</td><td align="center">Live</td></tr>
+  <tr><td><b>blocklist.de</b></td><td>Abuse / brute-force IPs</td><td align="center">Live</td></tr>
   <tr><td><b>Feodo Tracker</b></td><td>C2 server IPs (banking trojans)</td><td align="center">Live</td></tr>
-  <tr><td><b>Dark web actor groups</b> (419 profiles)</td><td>Ransomware gang monitoring</td><td align="center">Live</td></tr>
-  <tr><td><b>Security News RSS</b> - HN, BleepingComputer, SecurityWeek, Dark Reading, Krebs, CISA (277 articles)</td><td>News</td><td align="center">Live</td></tr>
+  <tr><td><b>Ransomware.live groups API</b></td><td>Operator profile metadata only; RTIP does not connect to onion sites</td><td align="center">Live</td></tr>
+  <tr><td><b>Security News RSS</b> - The Hacker News, BleepingComputer, SecurityWeek, Dark Reading, KrebsOnSecurity, CISA</td><td>News</td><td align="center">Live</td></tr>
   <tr><td><b>NVD</b>, <b>EPSS</b></td><td>CVE + exploitation probability</td><td align="center">Implemented</td></tr>
   <tr><td><b>URLhaus</b> <i>(needs free abuse.ch key)</i></td><td>Malicious URLs</td><td align="center">Implemented</td></tr>
   <tr><td><b>ThreatFox</b> <i>(needs free abuse.ch key)</i></td><td>IOCs</td><td align="center">Implemented</td></tr>
@@ -82,6 +83,8 @@ RTIP aggregates intelligence from **legitimate, publicly accessible free/communi
 </table>
 
 > Keyed sources degrade gracefully: without a key they report <code>misconfigured</code>/<code>degraded</code> in the sources UI instead of crashing the pipeline. Free abuse.ch keys: <a href="https://auth.abuse.ch/">https://auth.abuse.ch/</a>
+>
+> The counts shown by the application are deployment-specific. A ransomware leak-site post is stored as a **claim**, not proof that a breach occurred; group profiles are metadata and do not imply access to dark-web sites.
 
 ### Security and Access
 
@@ -100,6 +103,7 @@ RTIP aggregates intelligence from **legitimate, publicly accessible free/communi
   <tr><th width="72%">Capability</th><th width="28%">Status</th></tr>
   <tr><td>React dashboard - dark theme, <code>#00D4FF</code> accent, Recharts; alert / breach / vuln / IOC / news / source modules</td><td align="center">Built</td></tr>
   <tr><td>Dashboard charts + global search</td><td align="center">Tested</td></tr>
+  <tr><td>MITRE ATT&amp;CK matrix, integrations, assets, investigations and account/security settings</td><td align="center">Built</td></tr>
   <tr><td>Reports: JSON / CSV / Markdown / PDF</td><td align="center">Built</td></tr>
   <tr><td>Correlation to Investigations UI</td><td align="center">Built</td></tr>
   <tr><td>Metrics + admin endpoints</td><td align="center">Built</td></tr>
@@ -122,12 +126,12 @@ RTIP ingests victim + domain + gang claim
         |
 Matched against YOUR registered assets and watchlists?
         |
-CRITICAL alert - WebSocket banner + alert row naming the matched asset
+Severity-escalated alert - WebSocket banner + alert row naming the matched asset
 ```
 
 - **Assets** - register owned domains, IP ranges (CIDR), product names with criticality. Intel touching them raises severity to a `high`/`critical` floor and names the asset in the alert.
 - **Watchlists** - `organization` (exact match), `domain`, `actor`, `cve`, `keyword` items raise dedicated `watchlist_mention` alerts.
-- **Proven with a real feed victim**: a demo asset + org watchlist caused a live Ransomware.live entry to escalate to CRITICAL with the matched asset named in the evidence.
+- A matching leak-site post is still an **unverified claim**. Configure assets and watchlists to raise alert severity and surface the match; investigate and validate the underlying claim separately.
 
 ---
 
@@ -184,6 +188,8 @@ Full details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
   <tr><td>blocklist.de</td><td>hourly at :25</td></tr>
   <tr><td>Security news RSS</td><td>every 10 min</td></tr>
   <tr><td>Dark web actor groups</td><td>every 12 h</td></tr>
+  <tr><td>NVD</td><td>hourly at :35 UTC</td></tr>
+  <tr><td>EPSS enrichment</td><td>daily at 04:10 UTC</td></tr>
 </table>
 
 ---
@@ -196,7 +202,7 @@ Full details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
   <tr><th width="30%">Component</th><th width="25%">Minimum version</th><th width="45%">Notes</th></tr>
   <tr><td>Linux or macOS</td><td>Debian/Ubuntu/Kali tested</td><td>Any Unix-like system works</td></tr>
   <tr><td>Python</td><td>3.12</td><td>Backend runtime + Alembic + Celery</td></tr>
-  <tr><td>Node.js + npm</td><td>20</td><td>Frontend build (Vite)</td></tr>
+  <tr><td>Node.js + npm</td><td>20.19+ or 22.12+</td><td>Frontend build (Vite 8; Node 22.12+ recommended)</td></tr>
   <tr><td>Redis</td><td>7</td><td>Task broker + WebSocket event bus backend</td></tr>
   <tr><td>Git</td><td>2.30</td><td>To clone the repository</td></tr>
   <tr><td>Docker + Compose</td><td>24 / v2</td><td>Optional - one-command production-style install</td></tr>
@@ -244,36 +250,46 @@ python3 -m venv .venv
 ### Step 4 - Create the database schema
 
 ```bash
-.venv/bin/alembic upgrade head          # applies all migrations (head: 913c69783841)
+set -a
+. ../.env
+set +a
+.venv/bin/alembic upgrade head          # current migration head: 72d4cb69a113
 ```
 
-- **Dev:** SQLite - zero config, the file `backend/rtip.db` is created for you.
-- **Production:** set `DATABASE_URL` to PostgreSQL **before** this step.
+- Run this from `backend/` so the root `.env` settings are exported to the migration command.
+- **Dev:** SQLite is the default; the database path is relative to the backend working directory (`backend/rtip.db`).
+- **Production:** set `DATABASE_URL` to PostgreSQL **before** this step. Back up existing databases before upgrading.
 
 ### Step 5 - Start Redis
 
 ```bash
-redis-server --daemonize yes            # or: docker run -d -p 6379:6379 redis:7-alpine
+redis-server --daemonize yes --save "" --appendonly no \
+  --pidfile /tmp/rtip-redis.pid --logfile /tmp/rtip-redis.log
+# or: docker run -d --name rtip-redis -p 6379:6379 redis:7-alpine
 redis-cli ping                          # must reply PONG
 ```
 
 ### Step 6 - Run the backend
 
 ```bash
-.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+set -a && . ../.env && set +a
+.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-- Health check: `curl http://localhost:8000/health` → `{"status":"ok",...}`
+- Health check: `curl http://localhost:8000/healthz` (also available at `/health`)
 - Interactive API docs: `http://localhost:8000/api/docs`
-- On the very first start the admin account from `ADMIN_EMAIL`/`ADMIN_PASSWORD` is created.
+- On the first development start, the admin account from `ADMIN_EMAIL`/`ADMIN_PASSWORD` is created if no users exist. Change the sample password before exposing the service.
 
 ### Step 7 - Run the Celery worker and scheduler
 
-Two separate terminals, both from `backend/`:
+Two separate terminals, both from `backend/`. In **each** terminal, export the root environment file, then run one of these commands:
 
 ```bash
-.venv/bin/celery -A app.workers.celery_app worker --loglevel=warning --concurrency=2
-.venv/bin/celery -A app.workers.celery_app beat --loglevel=warning
+set -a && . ../.env && set +a
+# Terminal 1:
+.venv/bin/celery -A app.workers.celery_app.celery_app worker --loglevel=warning --concurrency=2
+# Terminal 2:
+.venv/bin/celery -A app.workers.celery_app.celery_app beat --loglevel=warning --schedule=/tmp/rtip-celerybeat-schedule
 ```
 
 The worker executes collectors; beat fires the schedule from the table above. Without these two processes no scheduled collection happens - the API alone only stores what you trigger manually.
@@ -295,7 +311,7 @@ Log in with the admin credentials from `.env`.
   <tr><th width="40%">Check</th><th width="60%">Expected</th></tr>
   <tr><td><code>curl http://localhost:8000/health</code></td><td><code>{"status":"ok","service":"rtip-backend",...}</code></td></tr>
   <tr><td>Dashboard login at <code>:5173</code></td><td>Alert feed, breach, vuln, IOC, news, sources modules render</td></tr>
-  <tr><td>Sources page</td><td>All 10 sources listed with per-source health (<code>healthy</code> / <code>degraded</code>)</td></tr>
+  <tr><td>Sources page</td><td>Configured sources listed with per-source health</td></tr>
   <tr><td>IOC page after first collections</td><td>Populated with typed, scored, sourced indicators</td></tr>
   <tr><td><code>redis-cli ping</code></td><td><code>PONG</code></td></tr>
 </table>
@@ -316,7 +332,7 @@ cd backend
 
 1. Open **Assets** in the dashboard and add everything you own: domains (`criticality: critical`), IP ranges / CIDRs, product names.
 2. Open **Watchlists** and add your exact organization name as an `organization` item, plus any supplier domains, threat actors or CVEs you track.
-3. From then on, every leak-site victim, IOC, CVE or news item touching those entries escalates to a critical alert naming the matched asset - live, via WebSocket, within one collection cycle.
+3. Matching intelligence raises alert severity and names the matched asset. Treat a ransomware leak-site entry as a claim until independently validated.
 
 ### Step 12 - Optional keys and channels
 
@@ -331,31 +347,38 @@ cd backend
 
 After adding keys, restart the backend **and** the worker so the collector registry picks them up.
 
-### Quick Start (one-liner recap)
+### Quick Start
 
 ```bash
-cp .env.example .env && cd backend && python3 -m venv .venv && \
-.venv/bin/pip install -e ".[dev]" && .venv/bin/alembic upgrade head
-# terminal 1: .venv/bin/uvicorn app.main:app --reload
-# terminal 2: .venv/bin/celery -A app.workers.celery_app worker --loglevel=warning
-# terminal 3: .venv/bin/celery -A app.workers.celery_app beat --loglevel=warning
-# terminal 4: cd frontend && npm install && npm run dev
+cp .env.example .env
+cd backend
+python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+set -a && . ../.env && set +a
+.venv/bin/alembic upgrade head
+# terminal 0: redis-server --daemonize yes --save "" --appendonly no --pidfile /tmp/rtip-redis.pid --logfile /tmp/rtip-redis.log
+# terminal 1 (from backend/): .venv/bin/uvicorn app.main:app --reload
+# terminal 2 (from backend/): .venv/bin/celery -A app.workers.celery_app.celery_app worker --loglevel=warning
+# terminal 3 (from backend/): .venv/bin/celery -A app.workers.celery_app.celery_app beat --loglevel=warning --schedule=/tmp/rtip-celerybeat-schedule
+# terminal 4 (from frontend/): npm install && npm run dev
 ```
 
 ### Option B - Docker Compose (all-in-one)
 
 ```bash
-cp .env.example .env    # set POSTGRES_PASSWORD and JWT_SECRET_KEY
-docker compose up --build
+cp .env.example .env    # set POSTGRES_PASSWORD and unique strong JWT_SECRET_KEY/AUDIT_HMAC_KEY/ADMIN_PASSWORD
+docker compose up -d postgres redis
+docker compose run --rm --build backend alembic upgrade head
+docker compose run --rm backend python -c "import asyncio; from app.main import bootstrap_admin; asyncio.run(bootstrap_admin())"
+docker compose up --build -d
 ```
 
-Brings up PostgreSQL 17, Redis 7, API (:8000), Celery worker, Celery beat, and the frontend served by nginx (:3000). Apply migrations once after first start: `docker compose exec backend alembic upgrade head`.
+Brings up PostgreSQL 17, Redis 7, API (:8000), Celery worker, Celery beat, and the frontend served by nginx (:3000). Migrate the database and create the initial platform administrator **before** starting the API and worker services. Protect the `.env` file and change the bootstrap password after first login. The dashboard is at `http://localhost:3000`; API docs are at `http://localhost:8000/api/docs`.
 
 ### Production hardening checklist
 
-- Generate a real `JWT_SECRET_KEY`; set `ENVIRONMENT=production`, `DEBUG=false`.
+- Generate unique strong `JWT_SECRET_KEY`, `AUDIT_HMAC_KEY` and bootstrap `ADMIN_PASSWORD` values; set `ENVIRONMENT=production`, `DEBUG=false`.
 - Use PostgreSQL with a strong `POSTGRES_PASSWORD`; never ship SQLite to production.
-- Change the bootstrapped admin password immediately, then enable TOTP MFA in the account page.
+- In development, the first admin is created from `ADMIN_EMAIL` / `ADMIN_PASSWORD`; change its sample password immediately and enable TOTP MFA. In production, provision an initial platform administrator through your approved bootstrap process before enabling interactive logins.
 - Terminate TLS at a reverse proxy and set `CORS_ORIGINS` to your real dashboard origin.
 - Keep `.env` out of version control (gitignored) and back it up securely - it is the only place secrets live.
 - Run worker + beat under a supervisor (Compose `restart: unless-stopped` policies are provided).
@@ -366,7 +389,7 @@ Brings up PostgreSQL 17, Redis 7, API (:8000), Celery worker, Celery beat, and t
 
 ```bash
 cd backend && .venv/bin/python -m pytest tests/ -v
-# 113 passed
+# 128 passed
 ```
 
 ---
@@ -381,6 +404,7 @@ RTIP is built on a few non-negotiable principles:
   `confirmed` · `reported` · `claimed` · `unverified` · `disputed`
 
   A leak-site listing is **always** `claimed`.
+- **Dark-web scope is explicit.** Group records are public API metadata; RTIP does not connect to onion services.
 - **Baseline suppression.** The first successful collection from a source ingests history *without* generating alerts, so analysts aren't flooded by backlogs.
 - **Confidence is explainable.** Every score ships with human-readable reasons; allowlisted benign infrastructure is down-weighted; AI never invents evidence inside the score.
 - **Terms respected.** Per-source commercial-use status and terms are recorded in [`docs/SOURCES.md`](docs/SOURCES.md) and in the `intelligence_sources` table. Keyed sources are optional and degrade gracefully.
@@ -391,10 +415,11 @@ RTIP is built on a few non-negotiable principles:
 
 <table width="100%">
   <tr><th width="30%">Control</th><th width="70%">Detail</th></tr>
-  <tr><td>Authentication</td><td>JWT with role-based access control (<code>admin</code> / <code>analyst</code> / <code>viewer</code>), refresh rotation, MFA (TOTP)</td></tr>
+  <tr><td>Authentication</td><td>JWT, organization-scoped authorization, refresh rotation, MFA (TOTP), optional OIDC SSO</td></tr>
   <tr><td>Passwords</td><td>bcrypt hashing</td></tr>
-  <tr><td>Brute force</td><td>Per-IP sliding-window login rate limiting (429 on threshold)</td></tr>
-  <tr><td>Audit</td><td>Immutable audit log of admin/analyst actions</td></tr>
+  <tr><td>Brute force</td><td>Redis-backed per-IP sliding-window rate limiting (429 on threshold; in-process fallback)</td></tr>
+  <tr><td>Audit</td><td>HMAC-SHA256 chained audit events with verification and CEF / RFC 5424 export</td></tr>
+  <tr><td>Machine access</td><td>Revocable service API keys; stored as hashes and shown only once</td></tr>
   <tr><td>Transport hardening</td><td>Security headers</td></tr>
   <tr><td>Input handling</td><td>Strict validation (Pydantic)</td></tr>
   <tr><td>Collection safety</td><td>Per-source rate limiting, response size caps</td></tr>
@@ -411,6 +436,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) § Security.
   <tr><th width="40%">Doc</th><th width="60%">Purpose</th></tr>
   <tr><td><a href="docs/ARCHITECTURE.md"><code>docs/ARCHITECTURE.md</code></a></td><td>System design and security model</td></tr>
   <tr><td><a href="docs/SOURCES.md"><code>docs/SOURCES.md</code></a></td><td>Source catalog, terms and commercial-use status</td></tr>
+  <tr><td><a href="docs/deploy-secrets.md"><code>docs/deploy-secrets.md</code></a></td><td>Production secret provisioning and deployment guidance</td></tr>
   <tr><td><code>http://localhost:8000/api/docs</code></td><td>Interactive OpenAPI docs (when running)</td></tr>
 </table>
 
