@@ -35,12 +35,14 @@ def _fmt_metric(name: str, mtype: str, help_text: str, samples: list[tuple[dict,
     return "\n".join(lines)
 
 
-async def _counts(db: AsyncSession) -> dict[str, float]:
+async def _counts(db: AsyncSession, organization_id) -> dict[str, float]:
     async def count(stmt) -> float:
         return float((await db.execute(stmt)).scalar() or 0)
 
     out = {}
-    out["alerts_total"] = await count(select(func.count()).select_from(Alert))
+    out["alerts_total"] = await count(
+        select(func.count()).select_from(Alert).where(Alert.organization_id == organization_id)
+    )
     out["iocs_total"] = await count(select(func.count()).select_from(IOC))
     out["vulnerabilities_total"] = await count(select(func.count()).select_from(Vulnerability))
     out["kev_total"] = await count(
@@ -48,7 +50,9 @@ async def _counts(db: AsyncSession) -> dict[str, float]:
     )
     out["breaches_total"] = await count(select(func.count()).select_from(BreachIncident))
     out["news_total"] = await count(select(func.count()).select_from(NewsArticle))
-    out["users_total"] = await count(select(func.count()).select_from(User))
+    out["users_total"] = await count(
+        select(func.count()).select_from(User).where(User.organization_id == organization_id)
+    )
     out["sources_failing"] = await count(
         select(func.count())
         .select_from(IntelligenceSource)
@@ -57,8 +61,14 @@ async def _counts(db: AsyncSession) -> dict[str, float]:
     return out
 
 
-async def _severity_samples(db: AsyncSession) -> list[tuple[dict, float]]:
-    rows = (await db.execute(select(Alert.severity, func.count()).group_by(Alert.severity))).all()
+async def _severity_samples(db: AsyncSession, organization_id) -> list[tuple[dict, float]]:
+    rows = (
+        await db.execute(
+            select(Alert.severity, func.count())
+            .where(Alert.organization_id == organization_id)
+            .group_by(Alert.severity)
+        )
+    ).all()
     return [({"severity": sev}, float(c)) for sev, c in rows if sev is not None]
 
 
@@ -86,7 +96,7 @@ async def metrics(
 ) -> Response:
     sections = []
 
-    counts = await _counts(db)
+    counts = await _counts(db, user.organization_id)
     sections.append(
         _fmt_metric(
             "rtip_records_total", "gauge",
@@ -98,7 +108,7 @@ async def metrics(
         _fmt_metric(
             "rtip_alerts_by_severity", "gauge",
             "Alerts grouped by severity",
-            await _severity_samples(db),
+            await _severity_samples(db, user.organization_id),
         )
     )
     sections.append(

@@ -6,7 +6,6 @@ Update cadence: source updates periodically; we poll hourly at most.
 """
 
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
 
 from app.collectors.base import BaseCollector, CollectedRecord
 from app.services.ioc_normalizer import IOCNormalizer, validate_cve_id

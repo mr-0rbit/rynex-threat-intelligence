@@ -49,6 +49,31 @@ export function SeverityBadge({ severity }: { severity: string }) {
   );
 }
 
+export function Badge({
+  children,
+  variant = "neutral",
+}: {
+  children: ReactNode;
+  variant?: "cyan" | "neutral" | "critical" | "warning" | "success";
+}) {
+  const styles: Record<string, string> = {
+    cyan: "border border-accent/40 bg-accent/10 text-accent font-semibold",
+    neutral: "border border-ink-600 bg-ink-800 text-ink-300",
+    critical: "border border-red-500/40 bg-red-500/15 text-red-200 font-bold",
+    warning: "border border-yellow-500/40 bg-yellow-500/15 text-yellow-300",
+    success: "border border-emerald-500/40 bg-emerald-500/15 text-emerald-300",
+  };
+  return (
+    <span
+      className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-2xs font-mono uppercase tracking-[0.08em] ${
+        styles[variant] ?? styles.neutral
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
 const statusStyles: Record<string, string> = {
   new: "bg-accent text-black font-semibold",
   acknowledged: "border border-accent-dim text-accent-dim",

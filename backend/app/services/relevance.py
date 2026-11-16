@@ -87,6 +87,7 @@ def match_assets(
             hits.append(
                 {
                     "id": str(getattr(asset, "id", "")),
+                    "organization_id": str(getattr(asset, "organization_id", "")),
                     "value": value,
                     "type": atype,
                     "criticality": getattr(asset, "criticality", "medium"),
@@ -145,6 +146,7 @@ def match_watchlists(
             hits.append(
                 {
                     "watchlist_id": str(getattr(item, "watchlist_id", "") or ""),
+                    "organization_id": str(getattr(item, "organization_id", "") or ""),
                     "item_type": itype,
                     "value": value,
                 }

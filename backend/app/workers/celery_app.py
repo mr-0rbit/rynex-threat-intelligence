@@ -77,4 +77,8 @@ celery_app.conf.beat_schedule = {
         "task": "rtip.retention_cleanup",
         "schedule": crontab(minute=0, hour=3),
     },
+    "ioc-confidence-decay": {
+        "task": "rtip.decay_indicators",
+        "schedule": crontab(minute=30, hour=2),
+    },
 }

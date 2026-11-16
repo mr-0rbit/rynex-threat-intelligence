@@ -8,7 +8,6 @@ distribution channel for automated consumption.
 import hashlib
 import logging
 import re
-import calendar
 import time as _time
 from collections.abc import AsyncIterator
 

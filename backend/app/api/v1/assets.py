@@ -1,14 +1,12 @@
 """Asset inventory CRUD — the org's own attack surface that intel is matched against."""
 
 import uuid
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import analyst_required, get_current_user
+from app.api.deps import asset_manager_required, get_current_user
 from app.core.database import get_db
 from app.models import Asset, User
 from app.models.asset import ASSET_TYPES
@@ -67,7 +65,11 @@ async def list_assets(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    stmt = select(Asset).order_by(Asset.match_count.desc(), Asset.value.asc())
+    stmt = (
+        select(Asset)
+        .where(Asset.organization_id == user.organization_id)
+        .order_by(Asset.match_count.desc(), Asset.value.asc())
+    )
     if type_filter:
         stmt = stmt.where(Asset.type == type_filter)
     if criticality:
@@ -83,7 +85,7 @@ async def list_assets(
 async def create_asset(
     body: AssetIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(asset_manager_required),
 ) -> dict:
     if body.type not in ASSET_TYPES:
         raise HTTPException(422, f"Invalid asset type; one of {', '.join(ASSET_TYPES)}")
@@ -91,11 +93,18 @@ async def create_asset(
         raise HTTPException(422, "criticality must be one of low|medium|high|critical")
     value = body.value.strip()
     dup = (
-        await db.execute(select(Asset).where(Asset.type == body.type, Asset.value == value))
+        await db.execute(
+            select(Asset).where(
+                Asset.organization_id == user.organization_id,
+                Asset.type == body.type,
+                Asset.value == value,
+            )
+        )
     ).scalar_one_or_none()
     if dup:
         raise HTTPException(409, "Asset of this type and value already exists")
     asset = Asset(
+        organization_id=user.organization_id,
         type=body.type,
         value=value,
         display_name=body.display_name or value,
@@ -121,9 +130,16 @@ async def update_asset(
     asset_id: uuid.UUID,
     body: AssetPatch,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(asset_manager_required),
 ) -> dict:
-    asset = await db.get(Asset, asset_id)
+    asset = (
+        await db.execute(
+            select(Asset).where(
+                Asset.id == asset_id,
+                Asset.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if asset is None:
         raise HTTPException(404, "Asset not found")
     if body.criticality is not None and body.criticality not in CRITICALITIES:
@@ -144,9 +160,16 @@ async def update_asset(
 async def delete_asset(
     asset_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(asset_manager_required),
 ) -> dict:
-    asset = await db.get(Asset, asset_id)
+    asset = (
+        await db.execute(
+            select(Asset).where(
+                Asset.id == asset_id,
+                Asset.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if asset is None:
         raise HTTPException(404, "Asset not found")
     await db.delete(asset)

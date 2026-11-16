@@ -8,7 +8,7 @@ owns (domains, IP ranges, products, vendors).
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Index, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, JSON, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -19,9 +19,12 @@ ASSET_TYPES = ("domain", "ipv4", "ipv6", "cidr", "product", "vendor", "keyword")
 class Asset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "assets"
     __table_args__ = (
-        Index("ix_assets_type_value", "type", "value"),
+        Index("ix_assets_org_type_value", "organization_id", "type", "value"),
     )
 
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     # type: domain|ipv4|ipv6|cidr|product|vendor|keyword
     type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     value: Mapped[str] = mapped_column(String(512), nullable=False)

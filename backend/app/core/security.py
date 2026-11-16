@@ -1,4 +1,4 @@
-"""Password hashing/policy, JWT creation/verification, RBAC helpers."""
+"""Enterprise security: password policies, JWT tokens, granular RBAC & permission matrices."""
 
 import re
 import uuid
@@ -13,8 +13,86 @@ from app.core.config import settings
 
 class Role(StrEnum):
     ADMIN = "admin"
+    SOC_LEAD = "soc_lead"
     ANALYST = "analyst"
+    TRIAGE = "triage"
+    AUDITOR = "auditor"
     VIEWER = "viewer"
+
+
+class Permission(StrEnum):
+    INTEL_READ = "intel:read"
+    INTEL_WRITE = "intel:write"
+    ALERTS_READ = "alerts:read"
+    ALERTS_TRIAGE = "alerts:triage"
+    SOURCES_MANAGE = "sources:manage"
+    WATCHLISTS_MANAGE = "watchlists:manage"
+    ASSETS_MANAGE = "assets:manage"
+    INVESTIGATIONS_WRITE = "investigations:write"
+    TAXII_READ = "taxii:read"
+    TAXII_WRITE = "taxii:write"
+    EDL_READ = "edl:read"
+    AUDIT_READ = "audit:read"
+    USERS_MANAGE = "users:manage"
+    SETTINGS_MANAGE = "settings:manage"
+
+
+# Role-to-Permissions Matrix
+ROLE_PERMISSIONS: dict[str, set[Permission]] = {
+    Role.ADMIN: set(Permission),
+    Role.SOC_LEAD: {
+        Permission.INTEL_READ,
+        Permission.INTEL_WRITE,
+        Permission.ALERTS_READ,
+        Permission.ALERTS_TRIAGE,
+        Permission.SOURCES_MANAGE,
+        Permission.WATCHLISTS_MANAGE,
+        Permission.ASSETS_MANAGE,
+        Permission.INVESTIGATIONS_WRITE,
+        Permission.TAXII_READ,
+        Permission.TAXII_WRITE,
+        Permission.EDL_READ,
+        Permission.AUDIT_READ,
+    },
+    Role.ANALYST: {
+        Permission.INTEL_READ,
+        Permission.INTEL_WRITE,
+        Permission.ALERTS_READ,
+        Permission.ALERTS_TRIAGE,
+        Permission.WATCHLISTS_MANAGE,
+        Permission.ASSETS_MANAGE,
+        Permission.INVESTIGATIONS_WRITE,
+        Permission.TAXII_READ,
+        Permission.TAXII_WRITE,
+        Permission.EDL_READ,
+    },
+    Role.TRIAGE: {
+        Permission.INTEL_READ,
+        Permission.ALERTS_READ,
+        Permission.ALERTS_TRIAGE,
+        Permission.TAXII_READ,
+        Permission.EDL_READ,
+    },
+    Role.AUDITOR: {
+        Permission.INTEL_READ,
+        Permission.ALERTS_READ,
+        Permission.TAXII_READ,
+        Permission.EDL_READ,
+        Permission.AUDIT_READ,
+    },
+    Role.VIEWER: {
+        Permission.INTEL_READ,
+        Permission.ALERTS_READ,
+        Permission.TAXII_READ,
+        Permission.EDL_READ,
+    },
+}
+
+
+def has_permission(role: str, permission: Permission) -> bool:
+    """Evaluate if a role holds a specific enterprise permission."""
+    perms = ROLE_PERMISSIONS.get(role, set())
+    return permission in perms
 
 
 PASSWORD_MIN_LENGTH = 12

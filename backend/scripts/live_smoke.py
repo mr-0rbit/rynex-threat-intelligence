@@ -7,7 +7,12 @@ import asyncio
 import os
 import sys
 
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:////tmp/opencode/rtip_live.db")
+import tempfile
+import pathlib
+
+_live_dir = pathlib.Path(tempfile.gettempdir()) / "rtip_live_data"
+_live_dir.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("DATABASE_URL", f"sqlite+aiosqlite:///{_live_dir}/rtip_live.db")
 os.environ.setdefault("DEBUG", "false")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 

@@ -3,6 +3,7 @@ import {
   api,
   clearTokens,
   getAccessToken,
+  completeOidcLogin as apiCompleteOidcLogin,
   login as apiLogin,
   logout as apiLogout,
   setAuthCallbacks,
@@ -24,6 +25,7 @@ interface AuthState {
   /** Returns mfaToken when an MFA challenge was issued (call verifyMfa next). */
   login: (email: string, password: string) => Promise<{ status: "session" | "mfa"; mfaToken?: string }>;
   verifyMfa: (mfaToken: string, code: string) => Promise<void>;
+  completeOidcLogin: (code: string, state: string) => Promise<void>;
   logout: () => void;
   /** Re-fetch /auth/me (e.g. after enabling/disabling MFA). */
   refreshUser: () => Promise<void>;
@@ -34,6 +36,7 @@ const AuthContext = createContext<AuthState>({
   loading: true,
   login: async () => ({ status: "session" }),
   verifyMfa: async () => {},
+  completeOidcLogin: async () => {},
   logout: async () => {},
   refreshUser: async () => {},
 });
@@ -47,7 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // No access token in memory after a page load — try the httpOnly cookie.
     const boot = async () => {
       try {
-        if (!getAccessToken()) await tryRefresh();
+        if (!getAccessToken()) {
+          const refreshed = await tryRefresh();
+          if (!refreshed) {
+            setUser(null);
+            return;
+          }
+        }
         const me = await api<User>("/auth/me");
         setUser(me);
       } catch {
@@ -76,6 +85,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(me);
   };
 
+  const completeOidcLogin = async (code: string, state: string) => {
+    await apiCompleteOidcLogin(code, state);
+    const me = await api<User>("/auth/me");
+    setUser(me);
+  };
+
   const logout = async () => {
     await apiLogout();
     setUser(null);
@@ -91,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, verifyMfa, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, verifyMfa, completeOidcLogin, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

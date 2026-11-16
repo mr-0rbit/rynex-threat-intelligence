@@ -40,13 +40,22 @@ async def dashboard_charts(db: AsyncSession = Depends(get_db), user: User = Depe
     alert_rows = (
         await db.execute(
             select(func.date(Alert.detected_at), func.count())
-            .where(Alert.detected_at >= fourteen_days_ago)
+            .where(
+                Alert.organization_id == user.organization_id,
+                Alert.detected_at >= fourteen_days_ago,
+            )
             .group_by(func.date(Alert.detected_at))
         )
     ).all()
 
     # Alert severity distribution
-    severity_rows = (await db.execute(select(Alert.severity, func.count()).group_by(Alert.severity))).all()
+    severity_rows = (
+        await db.execute(
+            select(Alert.severity, func.count())
+            .where(Alert.organization_id == user.organization_id)
+            .group_by(Alert.severity)
+        )
+    ).all()
 
     # IOC types
     ioc_rows = (await db.execute(select(IOC.type, func.count()).group_by(IOC.type))).all()
@@ -133,7 +142,11 @@ async def global_search(
         await db.execute(select(NewsArticle).where(NewsArticle.headline.ilike(like)).limit(10))
     ).scalars().all()
     alerts = (
-        await db.execute(select(Alert).where(Alert.title.ilike(like)).limit(10))
+        await db.execute(
+            select(Alert)
+            .where(Alert.organization_id == user.organization_id, Alert.title.ilike(like))
+            .limit(10)
+        )
     ).scalars().all()
 
     return {
@@ -222,7 +235,14 @@ async def generate_report(
             for i in rows_iter
         ]
     else:
-        rows_iter = (await db.execute(select(Alert).order_by(Alert.detected_at.desc()).limit(limit))).scalars().all()
+        rows_iter = (
+            await db.execute(
+                select(Alert)
+                .where(Alert.organization_id == user.organization_id)
+                .order_by(Alert.detected_at.desc())
+                .limit(limit)
+            )
+        ).scalars().all()
         head = ["detected_at", "severity", "category", "status", "confidence", "title"]
         records = [
             [a.detected_at.date().isoformat(), a.severity, a.category, a.status, a.confidence, a.title]
@@ -418,11 +438,16 @@ async def executive_report(
     active_by_severity = dict(
         (await db.execute(
             select(Alert.severity, func.count())
-            .where(Alert.status.in_(["new", "acknowledged", "investigating"]))
+            .where(
+                Alert.organization_id == user.organization_id,
+                Alert.status.in_(["new", "acknowledged", "investigating"]),
+            )
             .group_by(Alert.severity)
         )).all()
     )
-    new_alerts_24h = await count(cnt(Alert, Alert.detected_at >= day_ago))
+    new_alerts_24h = await count(
+        cnt(Alert, Alert.organization_id == user.organization_id, Alert.detected_at >= day_ago)
+    )
     kev_count = await count(cnt(Vulnerability, Vulnerability.in_kev.is_(True)))
     kev_ransomware = await count(cnt(Vulnerability, Vulnerability.in_kev.is_(True), Vulnerability.kev_known_ransomware_use.is_(True)))
     critical_cves = await count(cnt(Vulnerability, Vulnerability.severity == "critical"))
@@ -436,7 +461,10 @@ async def executive_report(
     asset_alerts = (
         (await db.execute(
             select(Alert)
-            .where(Alert.status.in_(["new", "acknowledged", "investigating"]))
+            .where(
+                Alert.organization_id == user.organization_id,
+                Alert.status.in_(["new", "acknowledged", "investigating"]),
+            )
             .order_by(Alert.detected_at.desc())
             .limit(200)
         )).scalars().all()
@@ -462,7 +490,7 @@ async def executive_report(
         return "\n".join(out)
 
     md = [
-        f"# Executive Report — Threat Intelligence Posture",
+        "# Executive Report — Threat Intelligence Posture",
         "",
         f"_Generated: {now.strftime('%Y-%m-%d %H:%M UTC')} | Period: last 24 hours for alerts, 7 days for breaches_",
         "",

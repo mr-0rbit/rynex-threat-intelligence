@@ -4,12 +4,20 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import analyst_required, get_current_user
+from app.api.deps import (
+    alert_triage_required,
+    analyst_required,
+    get_current_user,
+    platform_admin_required,
+    require_permission,
+)
 from app.core.database import get_db
+from app.core.security import Permission
 from app.models import (
     Alert,
     BreachIncident,
@@ -21,6 +29,7 @@ from app.models import (
     Vulnerability,
 )
 from app.services.ingestion import run_collector
+from app.services.audit import record_audit
 
 router = APIRouter(tags=["intelligence"])
 
@@ -38,8 +47,16 @@ async def dashboard_overview(db: AsyncSession = Depends(get_db), user: User = De
             stmt = stmt.where(f)
         return (await db.execute(stmt)).scalar() or 0
 
-    active_alerts = await count(Alert, Alert.status.in_(["new", "acknowledged", "investigating"]))
-    new_alerts_24h = await count(Alert, Alert.detected_at >= day_ago)
+    active_alerts = await count(
+        Alert,
+        Alert.organization_id == user.organization_id,
+        Alert.status.in_(["new", "acknowledged", "investigating"]),
+    )
+    new_alerts_24h = await count(
+        Alert,
+        Alert.organization_id == user.organization_id,
+        Alert.detected_at >= day_ago,
+    )
     breaches_24h = await count(BreachIncident, BreachIncident.published_at >= day_ago)
     critical_vulns = await count(Vulnerability, Vulnerability.severity == "critical")
     kev_count = await count(Vulnerability, Vulnerability.in_kev.is_(True))
@@ -96,9 +113,13 @@ async def list_alerts(
     limit: int = Query(50, le=200),
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission(Permission.ALERTS_READ)),
 ) -> dict:
-    stmt = select(Alert).order_by(Alert.detected_at.desc())
+    stmt = (
+        select(Alert)
+        .where(Alert.organization_id == user.organization_id)
+        .order_by(Alert.detected_at.desc())
+    )
     if status_filter:
         stmt = stmt.where(Alert.status == status_filter)
     if severity:
@@ -133,16 +154,44 @@ async def update_alert_status(
     alert_id: uuid.UUID,
     body: AlertStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(alert_triage_required),
 ) -> dict:
     if body.status not in ALERT_STATUSES:
         raise HTTPException(422, f"status must be one of {sorted(ALERT_STATUSES)}")
-    alert = await db.get(Alert, alert_id)
+    alert = (
+        await db.execute(
+            select(Alert).where(
+                Alert.id == alert_id,
+                Alert.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if not alert:
         raise HTTPException(404, "Alert not found")
+    if body.assigned_to:
+        assignee = (
+            await db.execute(
+                select(User).where(
+                    User.id == body.assigned_to,
+                    User.organization_id == user.organization_id,
+                    User.is_active.is_(True),
+                )
+            )
+        ).scalar_one_or_none()
+        if assignee is None:
+            raise HTTPException(422, "Assignee must be an active user in this organization")
     alert.status = body.status
     if body.assigned_to:
         alert.assigned_to = body.assigned_to
+    await record_audit(
+        db,
+        action="alert.status_update",
+        actor_email=user.email,
+        organization_id=user.organization_id,
+        resource_type="alert",
+        resource_id=str(alert.id),
+        detail={"status": body.status},
+    )
     await db.commit()  # status changes must be durable before the UI refetches
     return {"id": str(alert.id), "status": alert.status}
 
@@ -154,7 +203,14 @@ async def alert_report_pdf(
     user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     """PDF report for a single alert (case handoff / compliance export)."""
-    alert = await db.get(Alert, alert_id)
+    alert = (
+        await db.execute(
+            select(Alert).where(
+                Alert.id == alert_id,
+                Alert.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if not alert:
         raise HTTPException(404, "Alert not found")
     try:
@@ -279,6 +335,47 @@ async def list_iocs(
             for i in iocs
         ],
     }
+
+
+@router.post("/iocs/{ioc_id}/false-positive")
+async def mark_ioc_false_positive(
+    ioc_id: uuid.UUID,
+    reason: str = Query("Marked as false positive by analyst"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(platform_admin_required),
+) -> dict:
+    """Enterprise false-positive revocation: zeroes score and suppresses indicator."""
+    ioc = await db.get(IOC, ioc_id)
+    if not ioc:
+        raise HTTPException(status_code=404, detail="IOC not found")
+    ioc.confidence = 0.0
+    reasons = dict(ioc.confidence_reasons or {})
+    reasons["false_positive_revoked"] = f"{reason} by {user.email}"
+    ioc.confidence_reasons = reasons
+    ioc.valid_until = datetime.now(UTC)
+    await record_audit(
+        db,
+        action="ioc.false_positive",
+        actor_email=user.email,
+        organization_id=user.organization_id,
+        resource_type="ioc",
+        resource_id=str(ioc.id),
+        detail={"reason": reason[:500]},
+    )
+    await db.commit()
+    return {"status": "ok", "message": f"IOC {ioc.value} marked as false positive", "id": str(ioc.id)}
+
+
+@router.post("/iocs/decay")
+async def trigger_ioc_decay(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(platform_admin_required),
+) -> dict:
+    """Manually trigger an IOC confidence decay cycle."""
+    from app.services.ioc_decay import run_decay_cycle
+
+    return await run_decay_cycle(db)
+
 
 
 # ---------- Vulnerabilities ----------

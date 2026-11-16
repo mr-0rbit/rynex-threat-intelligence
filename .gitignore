@@ -34,3 +34,4 @@ tsconfig.tsbuildinfo
 
 # Celery beat schedule files
 celerybeat-schedule*
+*.rdb

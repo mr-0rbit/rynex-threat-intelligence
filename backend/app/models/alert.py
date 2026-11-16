@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, Index, Integer, String, Text, Uuid
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -11,8 +11,14 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 class Alert(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "alerts"
-    __table_args__ = (Index("ix_alerts_fingerprint_status", "fingerprint", "status"),)
+    __table_args__ = (
+        Index("ix_alerts_fingerprint_status", "fingerprint", "status"),
+        Index("ix_alerts_org_detected", "organization_id", "detected_at"),
+    )
 
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     # Deduplication fingerprint (category + stable entity key); changes when new evidence arrives
     fingerprint: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     evidence_hash: Mapped[str | None] = mapped_column(String(64))
@@ -42,6 +48,9 @@ class Alert(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class AlertRule(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "alert_rules"
 
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     category: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
@@ -54,6 +63,9 @@ class AlertRule(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class Watchlist(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "watchlists"
 
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     owner_email: Mapped[str | None] = mapped_column(String(320))
@@ -63,6 +75,9 @@ class Watchlist(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class WatchlistItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "watchlist_items"
 
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     watchlist_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True, nullable=False)
     item_type: Mapped[str] = mapped_column(String(32), nullable=False)  # organization|domain|actor|cve|keyword
     value: Mapped[str] = mapped_column(String(512), nullable=False, index=True)

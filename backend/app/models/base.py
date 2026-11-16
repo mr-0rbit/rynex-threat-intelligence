@@ -10,7 +10,9 @@ from datetime import UTC, datetime
 from sqlalchemy import DateTime, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database import Base  # noqa: F401 — re-exported for model modules
+from app.core.database import Base as Base  # re-exported for model modules
+
+__all__ = ["Base", "TimestampMixin", "UUIDPrimaryKeyMixin", "utcnow"]
 
 
 def utcnow() -> datetime:

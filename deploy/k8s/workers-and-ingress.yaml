@@ -1,0 +1,223 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtip-worker
+  namespace: rtip
+  labels:
+    app.kubernetes.io/name: rtip-worker
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rtip-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rtip-worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: worker
+          image: rtip-backend:latest
+          command: ["celery", "-A", "app.workers.celery_app.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
+          envFrom:
+            - configMapRef:
+                name: rtip-config
+            - secretRef:
+                name: rtip-secrets
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1024Mi"
+            limits:
+              cpu: "2000m"
+              memory: "4096Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtip-beat
+  namespace: rtip
+  labels:
+    app.kubernetes.io/name: rtip-beat
+spec:
+  replicas: 1 # Exactly one beat instance to prevent duplicate scheduling
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rtip-beat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rtip-beat
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: beat
+          image: rtip-backend:latest
+          command: ["celery", "-A", "app.workers.celery_app.celery_app", "beat", "--loglevel=info"]
+          envFrom:
+            - configMapRef:
+                name: rtip-config
+            - secretRef:
+                name: rtip-secrets
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtip-frontend
+  namespace: rtip
+  labels:
+    app.kubernetes.io/name: rtip-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rtip-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rtip-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: rtip-frontend:latest
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rtip-frontend
+  namespace: rtip
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      name: http
+  selector:
+    app.kubernetes.io/name: rtip-frontend
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rtip-ingress
+  namespace: rtip
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "rtip-backend"
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+spec:
+  tls:
+    - hosts:
+        - rtip.rynex.tech
+      secretName: rtip-tls-cert
+  rules:
+    - host: rtip.rynex.tech
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: rtip-backend
+                port:
+                  number: 8000
+          - path: /taxii2
+            pathType: Prefix
+            backend:
+              service:
+                name: rtip-backend
+                port:
+                  number: 8000
+          - path: /healthz
+            pathType: Prefix
+            backend:
+              service:
+                name: rtip-backend
+                port:
+                  number: 8000
+          - path: /livez
+            pathType: Prefix
+            backend:
+              service:
+                name: rtip-backend
+                port:
+                  number: 8000
+          - path: /readyz
+            pathType: Prefix
+            backend:
+              service:
+                name: rtip-backend
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rtip-frontend
+                port:
+                  number: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rtip-backend-pdb
+  namespace: rtip
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rtip-backend
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: rtip-backend-hpa
+  namespace: rtip
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rtip-backend
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75

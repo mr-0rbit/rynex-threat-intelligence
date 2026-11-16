@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rtip
+  labels:
+    app.kubernetes.io/name: rtip
+    app.kubernetes.io/part-of: threat-intelligence
+    pod-security.kubernetes.io/enforce: restricted

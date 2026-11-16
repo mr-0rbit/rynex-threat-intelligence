@@ -7,7 +7,7 @@ Provenance rule: every intelligence record keeps its original source reference
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, Index, Integer, String, Text, Uuid
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -150,6 +150,9 @@ class ThreatActor(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class Investigation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "investigations"
 
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="open", nullable=False, index=True)
     severity: Mapped[str | None] = mapped_column(String(16))

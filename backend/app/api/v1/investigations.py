@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import analyst_required, get_current_user
+from app.api.deps import get_current_user, investigation_writer_required
 from app.core.database import get_db
 from app.models import Investigation, User
 from app.services.audit import record_audit
@@ -65,7 +65,11 @@ async def list_investigations(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    stmt = select(Investigation).order_by(Investigation.updated_at.desc().nullslast())
+    stmt = (
+        select(Investigation)
+        .where(Investigation.organization_id == user.organization_id)
+        .order_by(Investigation.updated_at.desc().nullslast())
+    )
     if status_filter:
         stmt = stmt.where(Investigation.status == status_filter)
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar()
@@ -77,11 +81,24 @@ async def list_investigations(
 async def create_investigation(
     body: InvestigationIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(investigation_writer_required),
 ) -> dict:
     if body.status not in INVESTIGATION_STATUSES:
         raise HTTPException(422, f"status must be one of {', '.join(sorted(INVESTIGATION_STATUSES))}")
+    if body.assigned_to:
+        assignee = (
+            await db.execute(
+                select(User).where(
+                    User.id == body.assigned_to,
+                    User.organization_id == user.organization_id,
+                    User.is_active.is_(True),
+                )
+            )
+        ).scalar_one_or_none()
+        if assignee is None:
+            raise HTTPException(422, "Assignee must be an active user in this organization")
     inv = Investigation(
+        organization_id=user.organization_id,
         title=body.title.strip(),
         status=body.status,
         severity=body.severity,
@@ -106,7 +123,14 @@ async def get_investigation(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    inv = await db.get(Investigation, investigation_id)
+    inv = (
+        await db.execute(
+            select(Investigation).where(
+                Investigation.id == investigation_id,
+                Investigation.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if inv is None:
         raise HTTPException(404, "Investigation not found")
     return _inv_out(inv)
@@ -117,13 +141,32 @@ async def update_investigation(
     investigation_id: uuid.UUID,
     body: InvestigationPatch,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(investigation_writer_required),
 ) -> dict:
-    inv = await db.get(Investigation, investigation_id)
+    inv = (
+        await db.execute(
+            select(Investigation).where(
+                Investigation.id == investigation_id,
+                Investigation.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if inv is None:
         raise HTTPException(404, "Investigation not found")
     if body.status is not None and body.status not in INVESTIGATION_STATUSES:
         raise HTTPException(422, f"status must be one of {', '.join(sorted(INVESTIGATION_STATUSES))}")
+    if body.assigned_to:
+        assignee = (
+            await db.execute(
+                select(User).where(
+                    User.id == body.assigned_to,
+                    User.organization_id == user.organization_id,
+                    User.is_active.is_(True),
+                )
+            )
+        ).scalar_one_or_none()
+        if assignee is None:
+            raise HTTPException(422, "Assignee must be an active user in this organization")
     for field in ("title", "status", "severity", "summary", "entity_refs", "assigned_to"):
         if getattr(body, field) is not None:
             setattr(inv, field, getattr(body, field))
@@ -141,9 +184,16 @@ async def add_investigation_note(
     investigation_id: uuid.UUID,
     body: NoteIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(investigation_writer_required),
 ) -> dict:
-    inv = await db.get(Investigation, investigation_id)
+    inv = (
+        await db.execute(
+            select(Investigation).where(
+                Investigation.id == investigation_id,
+                Investigation.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if inv is None:
         raise HTTPException(404, "Investigation not found")
     notes = list(inv.analyst_notes or [])
@@ -158,9 +208,16 @@ async def add_investigation_note(
 async def delete_investigation(
     investigation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(investigation_writer_required),
 ) -> dict:
-    inv = await db.get(Investigation, investigation_id)
+    inv = (
+        await db.execute(
+            select(Investigation).where(
+                Investigation.id == investigation_id,
+                Investigation.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if inv is None:
         raise HTTPException(404, "Investigation not found")
     await db.delete(inv)

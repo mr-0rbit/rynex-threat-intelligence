@@ -1,7 +1,6 @@
 """Enterprise feature tests: security hardening, MFA, API keys, asset matching,
 watchlist correlation, corroboration, new APIs, exports, ops endpoints."""
 
-import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -278,11 +277,18 @@ async def test_asset_match_escalates_severity_and_bumps_counters(client):
 
     from app.core.database import AsyncSessionLocal
     from app.models import Alert, Asset, IOC
+    from app.models.organization import DEFAULT_ORGANIZATION_ID
 
     domain = "critical-asset-test.example.com"
     try:
         async with AsyncSessionLocal() as db:
-            asset = Asset(type="domain", value=domain, criticality="critical", enabled=True)
+            asset = Asset(
+                organization_id=DEFAULT_ORGANIZATION_ID,
+                type="domain",
+                value=domain,
+                criticality="critical",
+                enabled=True,
+            )
             db.add(asset)
             await db.commit()
 
@@ -322,14 +328,24 @@ async def test_watchlist_mention_alert(client):
 
     from app.core.database import AsyncSessionLocal
     from app.models import Alert, IOC, Watchlist, WatchlistItem
+    from app.models.organization import DEFAULT_ORGANIZATION_ID
 
     org = "Watched Test Org"
     try:
         async with AsyncSessionLocal() as db:
-            wl = Watchlist(name="test-watchlist", enabled=True)
+            wl = Watchlist(
+                organization_id=DEFAULT_ORGANIZATION_ID,
+                name="test-watchlist",
+                enabled=True,
+            )
             db.add(wl)
             await db.flush()
-            item = WatchlistItem(watchlist_id=wl.id, item_type="organization", value=org)
+            item = WatchlistItem(
+                organization_id=DEFAULT_ORGANIZATION_ID,
+                watchlist_id=wl.id,
+                item_type="organization",
+                value=org,
+            )
             db.add(item)
             await db.commit()
 
@@ -356,7 +372,12 @@ async def test_watchlist_mention_alert(client):
             assert org.lower() in match_alert.fingerprint
 
             # also: an IOC whose domain is on the watchlist
-            item2 = WatchlistItem(watchlist_id=wl.id, item_type="domain", value="watchedtest.example.com")
+            item2 = WatchlistItem(
+                organization_id=DEFAULT_ORGANIZATION_ID,
+                watchlist_id=wl.id,
+                item_type="domain",
+                value="watchedtest.example.com",
+            )
             db.add(item2)
             await db.commit()
             await _ingestion(db).store_result(_Result(records=[_Rec(kind="ioc", data={
@@ -603,8 +624,6 @@ async def test_metrics_endpoint(client, auth_headers):
 
 @pytest.mark.asyncio
 async def test_retention_cleanup_task(client):
-    from sqlalchemy import select
-
     from app.core.database import AsyncSessionLocal
     from app.models import CollectionJob
     from app.workers.tasks import _retention_purge

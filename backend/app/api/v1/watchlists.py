@@ -2,12 +2,12 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import analyst_required, get_current_user
+from app.api.deps import get_current_user, watchlist_manager_required
 from app.core.database import get_db
 from app.models import User, Watchlist, WatchlistItem
 from app.services.audit import record_audit
@@ -56,12 +56,20 @@ async def list_watchlists(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    watchlists = (await db.execute(select(Watchlist).order_by(Watchlist.name))).scalars().all()
+    watchlists = (
+        await db.execute(
+            select(Watchlist)
+            .where(Watchlist.organization_id == user.organization_id)
+            .order_by(Watchlist.name)
+        )
+    ).scalars().all()
     counts = {
         str(wid): cnt
         for wid, cnt in (
             await db.execute(
-                select(WatchlistItem.watchlist_id, func.count()).group_by(WatchlistItem.watchlist_id)
+                select(WatchlistItem.watchlist_id, func.count())
+                .where(WatchlistItem.organization_id == user.organization_id)
+                .group_by(WatchlistItem.watchlist_id)
             )
         ).all()
     }
@@ -72,9 +80,15 @@ async def list_watchlists(
 async def create_watchlist(
     body: WatchlistIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(watchlist_manager_required),
 ) -> dict:
-    wl = Watchlist(name=body.name.strip(), description=body.description, enabled=body.enabled, owner_email=user.email)
+    wl = Watchlist(
+        organization_id=user.organization_id,
+        name=body.name.strip(),
+        description=body.description,
+        enabled=body.enabled,
+        owner_email=user.email,
+    )
     db.add(wl)
     await record_audit(
         db, action="watchlist.create", actor_email=user.email, resource_type="watchlist",
@@ -89,12 +103,24 @@ async def create_watchlist(
 async def delete_watchlist(
     watchlist_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(watchlist_manager_required),
 ) -> dict:
-    wl = await db.get(Watchlist, watchlist_id)
+    wl = (
+        await db.execute(
+            select(Watchlist).where(
+                Watchlist.id == watchlist_id,
+                Watchlist.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if wl is None:
         raise HTTPException(404, "Watchlist not found")
-    await db.execute(WatchlistItem.__table__.delete().where(WatchlistItem.watchlist_id == watchlist_id))
+    await db.execute(
+        WatchlistItem.__table__.delete().where(
+            WatchlistItem.watchlist_id == watchlist_id,
+            WatchlistItem.organization_id == user.organization_id,
+        )
+    )
     await db.delete(wl)
     await record_audit(
         db, action="watchlist.delete", actor_email=user.email, resource_type="watchlist",
@@ -110,12 +136,24 @@ async def list_watchlist_items(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[dict]:
-    wl = await db.get(Watchlist, watchlist_id)
+    wl = (
+        await db.execute(
+            select(Watchlist).where(
+                Watchlist.id == watchlist_id,
+                Watchlist.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if wl is None:
         raise HTTPException(404, "Watchlist not found")
     items = (
         await db.execute(
-            select(WatchlistItem).where(WatchlistItem.watchlist_id == watchlist_id).order_by(WatchlistItem.value)
+            select(WatchlistItem)
+            .where(
+                WatchlistItem.watchlist_id == watchlist_id,
+                WatchlistItem.organization_id == user.organization_id,
+            )
+            .order_by(WatchlistItem.value)
         )
     ).scalars().all()
     return [_item_out(i) for i in items]
@@ -126,9 +164,16 @@ async def add_watchlist_item(
     watchlist_id: uuid.UUID,
     body: WatchlistItemIn,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(watchlist_manager_required),
 ) -> dict:
-    wl = await db.get(Watchlist, watchlist_id)
+    wl = (
+        await db.execute(
+            select(Watchlist).where(
+                Watchlist.id == watchlist_id,
+                Watchlist.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if wl is None:
         raise HTTPException(404, "Watchlist not found")
     if body.item_type not in ITEM_TYPES:
@@ -145,6 +190,7 @@ async def add_watchlist_item(
     if dup:
         raise HTTPException(409, "Item already on this watchlist")
     item = WatchlistItem(
+        organization_id=user.organization_id,
         watchlist_id=watchlist_id,
         item_type=body.item_type,
         value=body.value.strip(),
@@ -161,10 +207,18 @@ async def delete_watchlist_item(
     watchlist_id: uuid.UUID,
     item_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(analyst_required),
+    user: User = Depends(watchlist_manager_required),
 ) -> dict:
-    item = await db.get(WatchlistItem, item_id)
-    if item is None or item.watchlist_id != watchlist_id:
+    item = (
+        await db.execute(
+            select(WatchlistItem).where(
+                WatchlistItem.id == item_id,
+                WatchlistItem.watchlist_id == watchlist_id,
+                WatchlistItem.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if item is None:
         raise HTTPException(404, "Item not found")
     await db.delete(item)
     await record_audit(

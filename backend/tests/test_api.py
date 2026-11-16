@@ -74,9 +74,11 @@ async def test_breach_detail_requires_auth(client):
 async def _seed_alert() -> uuid.UUID:
     from app.core.database import AsyncSessionLocal
     from app.models import Alert
+    from app.models.organization import DEFAULT_ORGANIZATION_ID
 
     async with AsyncSessionLocal() as db:
         alert = Alert(
+            organization_id=DEFAULT_ORGANIZATION_ID,
             fingerprint="fp-pdf-test",
             title="PDF report test alert",
             description="Seeded to exercise the PDF export path",

@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, Mail, ShieldAlert } from "lucide-react";
 import { useAuth } from "../auth";
+import { getOidcConfig, startOidcLogin } from "../api/client";
 
 export function Login() {
   const { login, verifyMfa } = useAuth();
@@ -14,6 +15,7 @@ export function Login() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [utcTime, setUtcTime] = useState("");
+  const [oidcEnabled, setOidcEnabled] = useState(false);
 
   useEffect(() => {
     const updateTime = () => {
@@ -23,6 +25,18 @@ export function Login() {
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void getOidcConfig()
+      .then(({ enabled }) => {
+        if (active) setOidcEnabled(enabled);
+      })
+      .catch(() => {
+        if (active) setOidcEnabled(false);
+      });
+    return () => { active = false; };
   }, []);
 
   const complete = () => navigate("/", { replace: true });
@@ -52,6 +66,17 @@ export function Login() {
         setError(err instanceof Error ? err.message : "Authentication failed. Check credentials.");
       }
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const beginSso = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await startOidcLogin();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to start SSO sign-in.");
       setBusy(false);
     }
   };
@@ -193,6 +218,24 @@ export function Login() {
                   )}
                 </button>
               </form>
+
+              {oidcEnabled && !mfaToken && (
+                <>
+                  <div className="my-5 flex items-center gap-3 text-[10px] font-mono uppercase tracking-widest text-ink-500">
+                    <span className="h-px flex-1 bg-ink-700" />
+                    <span>or use single sign-on</span>
+                    <span className="h-px flex-1 bg-ink-700" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={beginSso}
+                    disabled={busy}
+                    className="w-full rounded border border-ink-600 bg-ink-950 py-2.5 text-xs font-mono font-bold uppercase tracking-[0.15em] text-ink-100 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+                  >
+                    Continue with SSO
+                  </button>
+                </>
+              )}
 
               {/* Security Warning Notice */}
               <div className="mt-6 border-t border-ink-700/80 pt-4 text-center">

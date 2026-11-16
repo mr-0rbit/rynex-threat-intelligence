@@ -10,9 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import Role, decode_token
+from app.core.security import Permission, Role, decode_token, has_permission
 from app.core.timeutil import ensure_aware
-from app.models import ApiToken, User
+from app.models import ApiToken, Organization, User
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -49,27 +49,27 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> User:
     # 1) Service API key (machine access: SOAR/SIEM pulls, integrations)
-    api_user = await _resolve_api_token(request, db)
-    if api_user is not None:
-        return api_user
+    user = await _resolve_api_token(request, db)
+    if user is None:
+        if credentials is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
+        payload = decode_token(credentials.credentials, token_types=("access",))
+        if not payload:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
+        user_id = payload.get("sub")
+        try:
+            user = await db.get(User, uuid.UUID(user_id)) if user_id else None
+        except (ValueError, TypeError):
+            user = None
+        if user is None or not user.is_active:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found or inactive")
+        issued_version = payload.get("ver")
+        if issued_version is not None and int(issued_version) != int(user.token_version or 0):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token revoked — please sign in again")
 
-    # 2) Interactive JWT
-    if credentials is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
-    payload = decode_token(credentials.credentials, token_types=("access",))
-    if not payload:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
-    user_id = payload.get("sub")
-    try:
-        user = await db.get(User, uuid.UUID(user_id)) if user_id else None
-    except (ValueError, TypeError):
-        user = None  # malformed subject claim → treat as invalid token, not a 500
-    if user is None or not user.is_active:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found or inactive")
-    # Token-version revocation: password change/reset instantly invalidates old JWTs
-    issued_version = payload.get("ver")
-    if issued_version is not None and int(issued_version) != int(user.token_version or 0):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token revoked — please sign in again")
+    organization = await db.get(Organization, user.organization_id)
+    if organization is None or not organization.enabled:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Organization is disabled")
     return user
 
 
@@ -82,5 +82,32 @@ def require_role(*roles: Role):
     return checker
 
 
+def require_permission(permission: Permission):
+    """Enforce fine-grained enterprise permission on an endpoint."""
+    async def checker(user: User = Depends(get_current_user)) -> User:
+        if not has_permission(user.role, permission):
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                f"Insufficient permissions: requires {permission.value}",
+            )
+        return user
+
+    return checker
+
+
+def require_platform_admin():
+    async def checker(user: User = Depends(get_current_user)) -> User:
+        if not user.is_platform_admin:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Platform administrator permissions required")
+        return user
+
+    return checker
+
+
 admin_required = require_role(Role.ADMIN)
-analyst_required = require_role(Role.ADMIN, Role.ANALYST)
+platform_admin_required = require_platform_admin()
+analyst_required = require_permission(Permission.INTEL_WRITE)
+asset_manager_required = require_permission(Permission.ASSETS_MANAGE)
+watchlist_manager_required = require_permission(Permission.WATCHLISTS_MANAGE)
+investigation_writer_required = require_permission(Permission.INVESTIGATIONS_WRITE)
+alert_triage_required = require_permission(Permission.ALERTS_TRIAGE)

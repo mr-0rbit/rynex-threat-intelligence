@@ -28,7 +28,9 @@ from app.models import (
     NewsArticle,
     ThreatActor,
     Vulnerability,
+    Watchlist,
     WatchlistItem,
+    Organization,
 )
 from app.models.alert import Alert
 from app.services import events
@@ -46,10 +48,11 @@ class IngestionService:
     def __init__(self, db: AsyncSession, alerting: bool = True):
         self.db = db
         self.alerting = alerting
-        self.alert_engine = AlertEngine()
         self._assets: list[Asset] = []
         self._watchlist_items: list[WatchlistItem] = []
         self._asset_hit_counts: dict[str, int] = {}  # asset id str -> matched record count
+        self._organizations: list[Organization] = []
+        self._alert_engines: dict[str, AlertEngine] = {}
         self._context_loaded = False
 
     # ---------------- context (loaded lazily, once per batch) ----------------
@@ -57,30 +60,73 @@ class IngestionService:
     async def _load_context(self) -> None:
         if self._context_loaded:
             return
+        self._organizations = (
+            await self.db.execute(select(Organization).where(Organization.enabled.is_(True)))
+        ).scalars().all()
         self._assets = (
-            (await self.db.execute(select(Asset).where(Asset.enabled.is_(True)))).scalars().all()
-        )
-        self._watchlist_items = (await self.db.execute(select(WatchlistItem))).scalars().all()
-        rules = (
-            (await self.db.execute(select(AlertRule).where(AlertRule.enabled.is_(True))))
+            (
+                await self.db.execute(
+                    select(Asset).where(
+                        Asset.enabled.is_(True),
+                        Asset.organization_id.in_([org.id for org in self._organizations]),
+                    )
+                )
+            )
             .scalars()
             .all()
+            if self._organizations
+            else []
         )
-        if rules:
-            # DB-configured rules are the operator's source of truth; defaults apply
-            # only while no rules have been created.
-            self.alert_engine = AlertEngine(
-                rules=[
-                    {
-                        "name": r.name,
-                        "category": r.category,
-                        "min_severity": r.min_severity,
-                        "min_confidence": r.min_confidence or 0.0,
-                        "enabled": True,
-                    }
-                    for r in rules
-                ]
+        self._watchlist_items = (
+            (
+                await self.db.execute(
+                    select(WatchlistItem)
+                    .join(Watchlist, WatchlistItem.watchlist_id == Watchlist.id)
+                    .where(
+                        WatchlistItem.organization_id.in_([org.id for org in self._organizations]),
+                        Watchlist.enabled.is_(True),
+                    )
+                )
             )
+            .scalars()
+            .all()
+            if self._organizations
+            else []
+        )
+        rules = (
+            (
+                await self.db.execute(
+                    select(AlertRule).where(
+                        AlertRule.enabled.is_(True),
+                        AlertRule.organization_id.in_([org.id for org in self._organizations]),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+            if self._organizations
+            else []
+        )
+        rules_by_org: dict[str, list[AlertRule]] = {}
+        for rule in rules:
+            rules_by_org.setdefault(str(rule.organization_id), []).append(rule)
+        for organization in self._organizations:
+            organization_rules = rules_by_org.get(str(organization.id), [])
+            if organization_rules:
+                self._alert_engines[str(organization.id)] = AlertEngine(
+                    rules=[
+                        {
+                            "name": rule.name,
+                            "category": rule.category,
+                            "min_severity": rule.min_severity,
+                            "min_confidence": rule.min_confidence or 0.0,
+                            "enabled": True,
+                        }
+                        for rule in organization_rules
+                    ]
+                )
+            else:
+                self._alert_engines[str(organization.id)] = AlertEngine()
         self._context_loaded = True
 
     async def store_result(self, result) -> int:
@@ -160,6 +206,7 @@ class IngestionService:
                 "watchlist_value": value,
                 "item_type": m.get("item_type"),
                 "matched_via": context_title,
+                "watchlist_matches": [m],
                 **(extra_entities or {}),
             }
             await self._raise_alert(
@@ -560,66 +607,102 @@ class IngestionService:
     async def _raise_alert(self, event: IntelligenceEvent) -> None:
         if not self.alerting:
             return  # baseline run: ingest history without flooding alerts
-        candidate = self.alert_engine.evaluate(event)
-        if candidate is None:
-            return
-        existing = (
-            await self.db.execute(select(Alert).where(Alert.fingerprint == candidate.fingerprint))
-        ).scalars().first()
-        if existing:
-            if should_update_existing_alert(existing.evidence_hash, candidate.evidence_hash):
-                existing.occurrence_count += 1
-                existing.last_evidence_at = datetime.now(UTC)
-                existing.evidence_hash = candidate.evidence_hash
-                existing.evidence_sources = (existing.evidence_sources or []) + [
-                    {"source_slug": candidate.source_slug, "url": candidate.source_url}
-                ]
-            return
-        alert = Alert(
-            fingerprint=candidate.fingerprint,
-            evidence_hash=candidate.evidence_hash,
-            title=candidate.title,
-            description=candidate.description,
-            category=candidate.category,
-            severity=candidate.severity,
-            confidence=candidate.confidence,
-            affected_entities=candidate.entities,
-            evidence_sources=[{"source_slug": candidate.source_slug, "url": candidate.source_url}],
-            detected_at=candidate.detected_at,
-            first_published_at=candidate.published_at,
-            last_evidence_at=candidate.detected_at,
-            status="new",
-            recommended_action=self._recommended_action(candidate),
-        )
-        self.db.add(alert)
-        await self.db.flush()
+        source_entities = event.entities or {}
+        for organization in self._organizations:
+            org_id = str(organization.id)
+            matched_assets = [
+                item
+                for item in (source_entities.get("matched_assets") or [])
+                if item.get("organization_id") == org_id
+            ]
+            watchlist_matches = [
+                item
+                for item in (source_entities.get("watchlist_matches") or [])
+                if item.get("organization_id") == org_id
+            ]
+            if event.category == "watchlist_mention" and not watchlist_matches:
+                continue
 
-        # Live WebSocket feed (single-worker). Multi-worker deployments need a
-        # Redis pub/sub bridge — see docs/ARCHITECTURE.md.
-        try:
-            events.publish_alert(
-                {
-                    "id": str(alert.id),
-                    "title": alert.title,
-                    "category": alert.category,
-                    "severity": alert.severity,
-                    "confidence": alert.confidence,
-                    "detected_at": alert.detected_at.isoformat() if alert.detected_at else None,
-                    "entities": alert.affected_entities,
-                }
+            entities = dict(source_entities)
+            if "matched_assets" in entities:
+                entities["matched_assets"] = matched_assets
+            if "watchlist_matches" in entities:
+                entities["watchlist_matches"] = watchlist_matches
+            tenant_event = IntelligenceEvent(
+                category=event.category,
+                title=event.title,
+                description=event.description,
+                severity=event.severity,
+                confidence=event.confidence,
+                source_slug=event.source_slug,
+                source_url=event.source_url,
+                published_at=event.published_at,
+                entities=entities,
             )
-        except Exception:  # noqa: BLE001
-            logger.exception("websocket publish failed for alert %s", alert.id)
+            candidate = self._alert_engines.get(org_id, AlertEngine()).evaluate(tenant_event)
+            if candidate is None:
+                continue
+            existing = (
+                await self.db.execute(
+                    select(Alert).where(
+                        Alert.organization_id == organization.id,
+                        Alert.fingerprint == candidate.fingerprint,
+                    )
+                )
+            ).scalars().first()
+            if existing:
+                if should_update_existing_alert(existing.evidence_hash, candidate.evidence_hash):
+                    existing.occurrence_count += 1
+                    existing.last_evidence_at = datetime.now(UTC)
+                    existing.evidence_hash = candidate.evidence_hash
+                    existing.evidence_sources = (existing.evidence_sources or []) + [
+                        {"source_slug": candidate.source_slug, "url": candidate.source_url}
+                    ]
+                continue
+            alert = Alert(
+                organization_id=organization.id,
+                fingerprint=candidate.fingerprint,
+                evidence_hash=candidate.evidence_hash,
+                title=candidate.title,
+                description=candidate.description,
+                category=candidate.category,
+                severity=candidate.severity,
+                confidence=candidate.confidence,
+                affected_entities=candidate.entities,
+                evidence_sources=[{"source_slug": candidate.source_slug, "url": candidate.source_url}],
+                detected_at=candidate.detected_at,
+                first_published_at=candidate.published_at,
+                last_evidence_at=candidate.detected_at,
+                status="new",
+                recommended_action=self._recommended_action(candidate),
+            )
+            self.db.add(alert)
+            await self.db.flush()
 
-        # Fire-and-forget notifications; delivery never blocks ingestion
-        from app.services import notifications
-
-        if notifications.configured_channels():
             try:
-                delivered = await notifications.dispatch_alert(alert)
-                alert.notified_channels = delivered
+                events.publish_alert(
+                    {
+                        "organization_id": org_id,
+                        "id": str(alert.id),
+                        "title": alert.title,
+                        "category": alert.category,
+                        "severity": alert.severity,
+                        "confidence": alert.confidence,
+                        "detected_at": alert.detected_at.isoformat() if alert.detected_at else None,
+                        "entities": alert.affected_entities,
+                    }
+                )
             except Exception:  # noqa: BLE001
-                logger.exception("notification dispatch failed for alert %s", alert.id)
+                logger.exception("websocket publish failed for alert %s", alert.id)
+
+            from app.services import notifications
+
+            if notifications.configured_channels():
+                try:
+                    delivered = await notifications.dispatch_alert(alert)
+                    alert.notified_channels = delivered
+                except Exception:  # noqa: BLE001
+                    logger.exception("notification dispatch failed for alert %s", alert.id)
 
     @staticmethod
     def _recommended_action(candidate) -> str:

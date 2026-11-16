@@ -20,8 +20,8 @@ logger = logging.getLogger("rtip.ws")
 router = APIRouter(tags=["realtime"])
 
 
-def _authenticate(token: str | None) -> uuid.UUID | None:
-    """Validate a bearer JWT and return the user id, or None."""
+def _authenticate(token: str | None) -> tuple[uuid.UUID, int] | None:
+    """Validate a bearer JWT and return its user id and token version."""
     if not token:
         return None
     try:
@@ -31,16 +31,37 @@ def _authenticate(token: str | None) -> uuid.UUID | None:
     if payload.get("type") != "access":
         return None
     try:
-        return uuid.UUID(payload["sub"])
+        return uuid.UUID(payload["sub"]), int(payload.get("ver", 0))
     except (KeyError, ValueError):
         return None
 
 
 @router.websocket("/ws/alerts")
 async def ws_alerts(websocket: WebSocket, token: str | None = Query(None)) -> None:
-    user_id = _authenticate(token)
-    if user_id is None:
+    principal = _authenticate(token)
+    if principal is None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    user_id, token_version = principal
+    from app.core.database import AsyncSessionLocal
+    from app.models import Organization, User
+
+    try:
+        async with AsyncSessionLocal() as db:
+            user = await db.get(User, user_id)
+            organization = await db.get(Organization, user.organization_id) if user else None
+            if (
+                user is None
+                or not user.is_active
+                or int(user.token_version or 0) != token_version
+                or organization is None
+                or not organization.enabled
+            ):
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
+            organization_id = str(user.organization_id)
+    except Exception:  # noqa: BLE001
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         return
     await websocket.accept()
     queue = await events.subscribe()
@@ -50,6 +71,8 @@ async def ws_alerts(websocket: WebSocket, token: str | None = Query(None)) -> No
             # Waits on queue; a periodic ping keeps intermediaries from dropping the socket.
             try:
                 payload = await asyncio.wait_for(queue.get(), timeout=30.0)
+                if payload.get("organization_id") != organization_id:
+                    continue
                 await websocket.send_json({"type": "alert", **payload})
             except asyncio.TimeoutError:
                 await websocket.send_json({"type": "ping"})

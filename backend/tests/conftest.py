@@ -1,13 +1,18 @@
 """Test fixtures. Runs against a throwaway SQLite database, never real intelligence."""
 
+import asyncio
+import inspect
 import os
 import pathlib
 import sys
+import tempfile
 
 import pytest
 
 # Configure environment BEFORE importing the application
-TEST_DB = pathlib.Path("/tmp/opencode/rtip_test.db")
+TEST_DIR = pathlib.Path(tempfile.gettempdir()) / "rtip_test_data"
+TEST_DIR.mkdir(parents=True, exist_ok=True)
+TEST_DB = TEST_DIR / "rtip_test.db"
 if TEST_DB.exists():
     TEST_DB.unlink()
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB}"
@@ -20,6 +25,20 @@ os.environ["ADMIN_PASSWORD"] = "TestAdminPass!123"
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+
+
+# Support running async tests when pytest-asyncio plugin is not installed system-wide
+def pytest_pyfunc_call(pyfuncitem):
+    if inspect.iscoroutinefunction(pyfuncitem.obj):
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            sig = inspect.signature(pyfuncitem.obj)
+            call_args = {k: v for k, v in pyfuncitem.funcargs.items() if k in sig.parameters}
+            loop.run_until_complete(pyfuncitem.obj(**call_args))
+        finally:
+            loop.close()
+        return True
 
 
 class _LifespanClient:
@@ -41,18 +60,35 @@ class _LifespanClient:
 
 
 @pytest.fixture
-async def client():
-    from app.main import app
-
-    async with _LifespanClient(app) as ac:
-        yield ac
+def event_loop():
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 
 @pytest.fixture
-async def auth_headers(client):
-    resp = await client.post(
-        "/api/v1/auth/login",
-        json={"email": "admin@test.local", "password": "TestAdminPass!123"},
+def client():
+    from app.main import app
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        ctx = _LifespanClient(app)
+        ac = loop.run_until_complete(ctx.__aenter__())
+        yield ac
+        loop.run_until_complete(ctx.__aexit__(None, None, None))
+    finally:
+        loop.close()
+
+
+@pytest.fixture
+def auth_headers(client):
+    loop = asyncio.get_event_loop() if asyncio.get_event_loop().is_running() else asyncio.new_event_loop()
+    resp = loop.run_until_complete(
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@test.local", "password": "TestAdminPass!123"},
+        )
     )
     assert resp.status_code == 200, resp.text
     token = resp.json()["access_token"]

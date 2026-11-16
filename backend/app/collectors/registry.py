@@ -17,9 +17,6 @@ from app.collectors.connectors.nvd import NVDCollector
 from app.collectors.connectors.ransomware_live import RansomwareLiveCollector
 from app.collectors.connectors.threatfox import ThreatFoxCollector
 from app.collectors.connectors.urlhaus import URLhausCollector
-from app.core.config import settings
-from app.core.logging import setup_logging
-
 import os
 
 # Connectors resolve their keys via os.getenv(API_KEY_SETTING); .env values are

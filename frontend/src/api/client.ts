@@ -122,6 +122,64 @@ export async function login(email: string, password: string): Promise<LoginResul
   return data;
 }
 
+export async function getOidcConfig(): Promise<{ enabled: boolean }> {
+  const response = await fetch(`${API}/auth/oidc/config`, {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new ApiError(response.status, "Unable to load SSO settings");
+  const data = (await response.json()) as { enabled?: boolean };
+  return { enabled: data.enabled === true };
+}
+
+export async function startOidcLogin(): Promise<void> {
+  const response = await fetch(`${API}/auth/oidc/login`, {
+    method: "GET",
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    let message = "Unable to start SSO sign-in";
+    try {
+      const body = await response.json();
+      if (typeof body.detail === "string") message = body.detail;
+    } catch { /* keep generic message */ }
+    throw new ApiError(response.status, message);
+  }
+  const result = (await response.json()) as { authorization_url?: string };
+  let authorizationUrl: URL | null = null;
+  try {
+    authorizationUrl = new URL(result.authorization_url || "");
+  } catch { /* handled by the validation below */ }
+  const localDevelopmentProvider =
+    authorizationUrl?.protocol === "http:" &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(authorizationUrl.hostname);
+  if (!authorizationUrl || (authorizationUrl.protocol !== "https:" && !localDevelopmentProvider)) {
+    throw new ApiError(502, "Identity provider returned an invalid authorization URL");
+  }
+  window.location.assign(authorizationUrl.toString());
+}
+
+export async function completeOidcLogin(code: string, state: string): Promise<void> {
+  const response = await fetch(`${API}/auth/oidc/callback`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ code, state }),
+  });
+  if (!response.ok) {
+    let message = "SSO authentication failed";
+    try {
+      const body = await response.json();
+      if (typeof body.detail === "string") message = body.detail;
+    } catch { /* keep generic message */ }
+    throw new ApiError(response.status, message);
+  }
+  const data = (await response.json()) as { access_token?: string };
+  if (!data.access_token) throw new ApiError(502, "SSO response did not include a session");
+  storeAccessToken(data.access_token);
+}
+
 /** Complete MFA login with the authenticator code. */
 export async function verifyMfa(mfaToken: string, code: string): Promise<void> {
   const resp = await fetch(`${API}/auth/mfa/verify`, {

@@ -3,7 +3,6 @@
 import pytest
 
 from app.collectors.connectors.darkweb_groups import parse_group_record
-from app.services.ioc_normalizer import IOCNormalizer
 
 
 class TestDarkWebParsing:

@@ -10,21 +10,38 @@ from app.models.intel import (
     Vulnerability,
 )
 from app.models.source import CollectionJob, IntelligenceSource
+from app.models.organization import (
+    AuditChainHead,
+    OIDCIdentity,
+    OIDCLoginState,
+    Organization,
+    OrganizationInvitation,
+    TAXIIOperation,
+    TAXIIObject,
+)
 from app.models.user import ApiToken, AuditLog, PasswordResetToken, User
 
 __all__ = [
     "Alert",
     "AlertRule",
+    "AuditChainHead",
     "ApiToken",
     "Asset",
     "AuditLog",
     "Base",
     "BreachIncident",
     "CollectionJob",
-    "IntelligenceSource",    "Investigation",
+    "IntelligenceSource",
+    "Investigation",
     "IOC",
     "NewsArticle",
+    "OIDCIdentity",
+    "OIDCLoginState",
+    "Organization",
+    "OrganizationInvitation",
     "PasswordResetToken",
+    "TAXIIOperation",
+    "TAXIIObject",
     "ThreatActor",
     "User",
     "Vulnerability",

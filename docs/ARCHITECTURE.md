@@ -42,7 +42,10 @@ Accuracy beats volume; every record is traceable to its source; every score is e
 
 ## 3. Data model (Phase 2 scope)
 
-- **users / audit_logs** — JWT auth, roles (admin/analyst/viewer), full audit trail.
+- **organizations / users / audit_logs** — tenant membership and role-based access; users, alerts, assets, cases, watchlists, and audit views are organization-scoped.
+- **oidc_identities / oidc_login_states** — issuer/subject identity links and short-lived, browser-bound, one-use OIDC state with PKCE verifier.
+- **taxii_objects / taxii_operations** — organization-scoped STIX 2.1 writes and durable TAXII operation status.
+- **audit_chain_head** — persisted sequence/head for the HMAC-SHA256 audit chain.
 - **intelligence_sources / collection_jobs** — registry + health: last success/failure, consecutive failures, records received/rejected/stored, checkpoints, avg duration.
 - **iocs** — normalized value+type unique; platform confidence with reasons; source reputation kept separate; first/last seen; malware family; tags.
 - **vulnerabilities** — CVE-anchored; CVSS, EPSS (Phase 4 enrichment), CISA KEV status; dedupe by CVE; enrichment never downgrades KEV status.
@@ -54,24 +57,26 @@ Accuracy beats volume; every record is traceable to its source; every score is e
 ## 4. Security model
 
 - **AuthN**: JWT access + refresh tokens (PyJWT), bcrypt (12 rounds). Refresh token is delivered as an `httpOnly` cookie scoped to `/api/v1/auth` (SameSite=Lax; `Secure` in production) and requires an `X-CSRF-Client` header; SPA keeps only the short-lived access token in memory.
+- **Enterprise SSO**: OIDC authorization-code flow with browser-bound single-use state, PKCE S256, signed ID-token verification against issuer JWKS, audience/issuer/expiry/nonce checks, matching UserInfo subject, and verified-email requirement. JIT accounts default to `viewer`; production callback and issuer URLs must use HTTPS.
 - **Password policy**: minimum 12 characters with upper, lower and digit (`validate_password_policy`).
 - **Token revocation**: every JWT carries a `ver` claim matching the user's `token_version`; password change/reset bumps the version, instantly invalidating all outstanding tokens.
 - **MFA**: TOTP (RFC 6238, pyotp). Login with MFA enabled returns a 5-minute `mfa_preauth` token that only `/auth/mfa/verify` accepts. Enrollment: `/auth/mfa/setup` → scan → `/auth/mfa/confirm` (still disabled until confirmed) → `/auth/mfa/disable` (requires a valid code).
 - **Service API keys**: `X-API-Key: rtip_...` (hash-only storage in `api_tokens`, prefix display, inherits owner role, revocable, `last_used_at` tracked). Machine clients (SOAR/SIEM) use these instead of interactive JWTs.
-- **Rate limiting**: in-process sliding window on login/MFA-verify/reset endpoints (`core/ratelimit.py`, settings-gated). Single-node stopgap; multi-node deployments front it with a shared limiter.
+- **Rate limiting**: Redis sorted-set sliding window on login/MFA-verify/reset endpoints, with an in-process fallback. Forwarded client IPs are accepted only from explicitly configured `TRUSTED_PROXY_CIDRS`.
 - **Password reset**: hashed single-use tokens (30-min TTL), uniform 202 responses (no user enumeration), token-version bump on use. Dev-only inline token return when no SMTP is configured.
-- **AuthZ**: admin > analyst > viewer; collection triggers and user management restricted to admin/analyst. API-key auth maps onto the same RBAC via the owning user.
-- **Audit trail**: security-relevant events (logins, MFA, password changes, asset/watchlist/case/key changes) recorded via `services/audit.py`; readable at `/admin/audit-logs`.
+- **AuthZ and tenancy**: granular permissions are checked server-side; organization admins cannot cross tenant boundaries. Shared threat-intelligence records remain global, while operational alerting, assets, watchlists, cases, TAXII writes, and audit views are tenant-scoped. Platform-wide organization management is restricted to platform admins.
+- **Audit trail**: all immutable record fields are HMAC-chained in sequence, and a separately persisted chain head is checked for edits, deletion, insertion, reordering, or truncation. Audit-write failures abort the caller's transaction; pre-migration legacy rows are reported as unverified.
 - **Headers**: nosniff, DENY framing, no-referrer, Permissions-Policy; HSTS in production.
 - **Untrusted input**: all feeds treated as hostile — size caps (20 MB), timeouts, strict Pydantic/regex validation, HTML stripped from summaries before storage.
 - **SSRF posture**: collector destinations are code-defined, not user-defined. If user-configurable feeds are added (Phase 9), enforce allowlisted schemes, resolved-IP checks against private/metadata ranges, and redirect validation (`ALLOW_PRIVATE_NETWORK_SOURCES=false` default).
-- **Secrets**: environment variables only; `intelligence_sources.api_key_setting` stores env-var names, never values.
+- **Secrets**: environment variables only; `intelligence_sources.api_key_setting` stores env-var names, never values. Production rejects placeholder JWT/audit/bootstrap secrets and SQLite. Kubernetes secrets are provisioned externally; see [`deploy-secrets.md`](deploy-secrets.md).
 - **Errors**: generic 500s to clients; details in structured JSON logs.
 
 ## 5. API surface (v1, implemented)
 
 ```
 POST /api/v1/auth/login            POST /api/v1/auth/refresh
+GET  /api/v1/auth/oidc/login       POST /api/v1/auth/oidc/callback
 GET  /api/v1/auth/me               POST /api/v1/auth/users        (admin)
 POST /api/v1/auth/mfa/setup|confirm|disable   POST /api/v1/auth/mfa/verify
 POST /api/v1/auth/change-password  POST /api/v1/auth/forgot-password|reset-password
@@ -93,9 +98,19 @@ GET  /api/v1/investigations | POST/PATCH/DELETE /api/v1/investigations[/{id}]
 POST /api/v1/investigations/{id}/notes
 GET  /api/v1/admin/api-keys | POST/DELETE /api/v1/admin/api-keys[/{id}]  (admin)
 GET  /api/v1/admin/audit-logs      GET  /api/v1/admin/users        (admin)
-GET  /api/v1/metrics               (Prometheus text exposition; auth required)
-WS   /api/v1/ws/alerts             (?token=<access JWT>; live alert stream)
-GET  /api/health
+GET  /api/v1/admin/audit-logs/verify (HMAC chain validation)
+GET  /api/v1/admin/audit-logs/export (CEF & RFC 5424 syslog export)
+GET/POST /api/v1/admin/organizations (platform admin)
+GET  /api/v1/mitre/matrix          GET  /api/v1/mitre/techniques
+GET  /api/v1/edl/ips | domains | urls | hashes (Firewall EDLs with ETag caching)
+POST /api/v1/iocs/{id}/false-positive (Analyst false-positive revocation)
+POST /api/v1/iocs/decay (Automated confidence decay cycle)
+GET  /taxii2/                      (OASIS TAXII 2.1 Server Discovery)
+GET  /taxii2/api1/                 (TAXII 2.1 API Root)
+GET  /taxii2/api1/collections/     (TAXII 2.1 Collections)
+GET  /taxii2/api1/collections/{id}/objects/ (STIX 2.1 Objects Bundle)
+GET  /livez | /readyz | /healthz   (Enterprise Kubernetes health probes)
+WS   /api/v1/ws/alerts             (?token=<access JWT>; live alert stream via Redis Pub/Sub)
 ```
 
 All list endpoints support filtering, search (`q`), pagination (`limit`/`offset`), and require authentication (JWT **or** service API key).
@@ -110,18 +125,20 @@ Optional sources with API keys (ThreatFox, URLhaus, MISP) appear in `/api/v1/sou
 - **Alert rules in DB**: rows in `alert_rules` override built-in defaults — operators tune thresholds without code changes.
 - **Enrichment-only feeds**: EPSS bulk data updates `epss_score` on tracked CVEs and never inserts bare rows; high-EPSS (≥ 0.5) tracked CVEs raise `high_epss_vulnerability` alerts (fingerprint `epss:<cve>`).
 - **NVD connector**: incremental via `lastModStartDate/lastModEndDate` with real checkpoint persistence (last successful job's checkpoint is reused); optional API key raises rate limits.
+- **MITRE ATT&CK Matrix**: 14 enterprise tactics mapped to platform telemetry, active indicators, and threat actor profiles.
+- **Automated IOC Confidence Decay**: Time-decay engine continuously ages indicators (IPs half-life: 14 days, domains: 30 days, hashes: permanent), preventing firewall rule exhaustion.
 
 ## 7. Real-time and observability
 
-- **WebSocket alerts** (`/api/v1/ws/alerts`): token-authenticated live stream fed by an in-process pub/sub bus (`services/events.py`). Single-worker deployments get true push; **multi-worker deployments need a Redis pub/sub bridge** so every replica receives all events (ingestion and API run in different processes).
+- **WebSocket alerts** (`/api/v1/ws/alerts`): token-authenticated live stream fed by an enterprise **Redis Pub/Sub event bridge** (`services/events.py`). Celery workers and multi-replica API workers broadcast alerts cluster-wide with seamless local in-memory fallback.
 - **Prometheus metrics** (`/api/v1/metrics`): record counts, alerts by severity, source health, job statuses. Scraped with a service API key.
-- **CI** (`.github/workflows/ci.yml`): ruff lint + pytest backend; type-check + build frontend.
+- **Kubernetes Probes**: `/livez` for process responsiveness and `/readyz` for deep asynchronous dependency verification (PostgreSQL connectivity and Redis ping).
+- **CI** (`.github/workflows/ci.yml`): ruff lint + pytest backend (128 tests passing); type-check + build frontend with page-level lazy chunks.
 
-- Stateless API behind Nginx; Celery workers scale horizontally.
-## 8. Scaling notes
+## 8. Enterprise Scaling & Cloud Architecture
 
-- Stateless API behind Nginx; Celery workers scale horizontally.
-- WebSocket fan-out needs a Redis pub/sub bridge when running multiple API workers (single-worker default gets push directly).
-- Rate limiting is in-process; put a shared limiter in front (nginx/Envoy) or add a Redis-backed store for multi-node.
-- Correlation engine (Phase 6) runs on ingestion with entity normalization (org/domain/hash), backed by `investigations`.
-- **Known boundaries** (deliberate, documented): OIDC/SAML SSO requires a real IdP to build and verify against; Helm/k8s HA packaging requires a cluster; full multi-tenancy is an architecture-wide change tracked separately.
+- **Stateless API & Distributed Workers**: FastAPI API replicas scale horizontally behind Nginx or Kubernetes Ingress; Celery workers scale independently across worker pools.
+- **Redis Pub/Sub Cluster Fan-Out**: Real-time push across all active WebSocket connections across multiple pods.
+- **Distributed Rate Limiting**: Redis sorted-set sliding window rate limiter protects endpoints against credential stuffing and brute force.
+- **Kubernetes manifests**: TLS ingress, probes, HPA and PodDisruptionBudgets are under `deploy/k8s/`. No credentials are checked in; provision the referenced `rtip-secrets` Secret from the approved secret manager before deployment and run Alembic migrations before scaling API replicas.
+- **Cryptographic Audit Integrity**: HMAC-SHA256 hash chaining on all audit events with online verification and ArcSight CEF / RFC 5424 Syslog export for enterprise SIEMs.

@@ -18,7 +18,6 @@ def _run_async(slug: str, trigger: str) -> dict:
 
     return asyncio.run(_inner())
 
-
 @celery_app.task(name="rtip.collect_one", bind=True, max_retries=2)
 def collect_one(self, slug: str, trigger: str = "scheduled") -> dict:
     try:
@@ -100,3 +99,16 @@ async def _retention_purge() -> dict:
             out["reset_tokens_deleted"] = result.rowcount or 0
         await db.commit()
     return out
+
+
+@celery_app.task(name="rtip.decay_indicators")
+def decay_indicators() -> dict:
+    """Enterprise IOC aging: recalculate confidence scores based on inactivity."""
+    from app.core.database import AsyncSessionLocal
+    from app.services.ioc_decay import run_decay_cycle
+
+    async def _inner():
+        async with AsyncSessionLocal() as db:
+            return await run_decay_cycle(db)
+
+    return asyncio.run(_inner())
