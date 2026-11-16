@@ -16,6 +16,25 @@ from fastapi import HTTPException, Request, status
 
 from app.core.config import settings
 
+# Atomic sliding-window check. Doing ZCARD and ZADD in one script prevents two
+# replicas from both admitting a request at the boundary, and keeps rejected
+# attempts from consuming a slot (which would let a client extend its own
+# lockout indefinitely).
+_RATE_LIMIT_LUA = """
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local max_attempts = tonumber(ARGV[3])
+local member = ARGV[4]
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+if redis.call('ZCARD', key) >= max_attempts then
+  return 0
+end
+redis.call('ZADD', key, now, member)
+redis.call('PEXPIRE', key, (window + 5) * 1000)
+return 1
+"""
+
 
 class RateLimiter:
     def __init__(self) -> None:
@@ -47,19 +66,19 @@ class RateLimiter:
         if redis is not None:
             try:
                 now = time.time()
-                cutoff = now - window_seconds
                 redis_key = f"rtip:ratelimit:{key}"
                 member_id = f"{now}:{uuid.uuid4().hex[:8]}"
 
-                pipe = redis.pipeline()
-                pipe.zremrangebyscore(redis_key, 0, cutoff)
-                pipe.zcard(redis_key)
-                pipe.zadd(redis_key, {member_id: now})
-                pipe.expire(redis_key, window_seconds + 5)
-                results = await pipe.execute()
-
-                current_count = results[1]
-                if current_count >= max_attempts:
+                allowed = await redis.eval(
+                    _RATE_LIMIT_LUA,
+                    1,
+                    redis_key,
+                    now,
+                    window_seconds,
+                    max_attempts,
+                    member_id,
+                )
+                if not allowed:
                     raise HTTPException(
                         status.HTTP_429_TOO_MANY_REQUESTS,
                         f"Rate limit exceeded: max {max_attempts} attempts per {window_seconds}s",

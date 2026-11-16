@@ -13,10 +13,10 @@ from collections.abc import AsyncIterator
 
 import feedparser
 
-logger = logging.getLogger("rtip.collectors.news")
-
 from app.collectors.base import BaseCollector, CollectedRecord
 from app.services.ioc_normalizer import IOCNormalizer
+
+logger = logging.getLogger("rtip.collectors.news")
 
 FEEDS: dict[str, str] = {
     "thehackernews": "https://feeds.feedburner.com/TheHackersNews",

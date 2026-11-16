@@ -1,7 +1,7 @@
 """Admin endpoints: service API keys, audit log, user listing.
 
-API keys authenticate with `X-API-Key: rtip_<random>`; only the SHA-256 hash is
-stored. Keys inherit the role of their owning user and can be revoked at any
+API keys authenticate with `X-API-Key` or `Authorization: Bearer`; only the
+SHA-256 hash is stored. Keys inherit the role of their owning user and can be revoked at any
 time. Machine clients (SOAR/SIEM) use these instead of interactive JWTs.
 """
 

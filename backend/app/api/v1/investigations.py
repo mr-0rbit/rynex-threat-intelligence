@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, investigation_writer_required
 from app.core.database import get_db
-from app.models import Investigation, User
+from app.models import CorrelationEvent, Investigation, InvestigationTimeline, User
 from app.services.audit import record_audit
+from app.services.correlation import CorrelationEngine
 
 router = APIRouter(tags=["investigations"])
 
@@ -227,6 +228,109 @@ async def delete_investigation(
     )
     await db.commit()
     return {"status": "deleted"}
+
+
+@router.post("/investigations/{investigation_id}/timeline")
+async def generate_investigation_timeline(
+    investigation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(investigation_writer_required),
+) -> dict:
+    """Auto-populate the investigation timeline from cross-source correlation."""
+    engine = CorrelationEngine(db, user.organization_id)
+    entries = await engine.generate_investigation_timeline(investigation_id)
+    return {
+        "generated": len(entries),
+        "entries": [
+            {
+                "id": str(entry.id),
+                "event_type": entry.event_type,
+                "title": entry.title,
+                "occurred_at": entry.occurred_at.isoformat(),
+            }
+            for entry in entries
+        ],
+    }
+
+
+@router.get("/investigations/{investigation_id}/timeline")
+async def get_investigation_timeline(
+    investigation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    items = (
+        await db.execute(
+            select(InvestigationTimeline)
+            .where(
+                InvestigationTimeline.investigation_id == investigation_id,
+                InvestigationTimeline.organization_id == user.organization_id,
+            )
+            .order_by(InvestigationTimeline.occurred_at.asc())
+        )
+    ).scalars().all()
+    return {
+        "items": [
+            {
+                "id": str(entry.id),
+                "event_type": entry.event_type,
+                "entity_key": entry.entity_key,
+                "entity_type": entry.entity_type,
+                "title": entry.title,
+                "detail": entry.detail,
+                "evidence_refs": entry.evidence_refs,
+                "occurred_at": entry.occurred_at.isoformat() if entry.occurred_at else None,
+            }
+            for entry in items
+        ]
+    }
+
+
+@router.get("/correlations")
+async def list_correlations(
+    entity_type: str | None = Query(None),
+    min_confidence: float = Query(0.0),
+    limit: int = Query(50, le=200),
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    stmt = (
+        select(CorrelationEvent)
+        .where(CorrelationEvent.organization_id == user.organization_id)
+        .order_by(CorrelationEvent.confidence.desc())
+    )
+    if entity_type:
+        stmt = stmt.where(CorrelationEvent.entity_type == entity_type)
+    if min_confidence > 0:
+        stmt = stmt.where(CorrelationEvent.confidence >= min_confidence)
+    total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar()
+    items = (await db.execute(stmt.limit(limit).offset(offset))).scalars().all()
+    return {
+        "total": total,
+        "items": [
+            {
+                "id": str(entry.id),
+                "entity_key": entry.entity_key,
+                "entity_type": entry.entity_type,
+                "correlation_type": entry.correlation_type,
+                "confidence": entry.confidence,
+                "source_count": entry.source_count,
+                "sources": entry.sources,
+                "related_alert_ids": entry.related_alert_ids,
+                "related_breach_ids": entry.related_breach_ids,
+                "related_cve_ids": entry.related_cve_ids,
+                "first_seen_at": (
+                    entry.first_seen_at.isoformat() if entry.first_seen_at else None
+                ),
+                "last_seen_at": (
+                    entry.last_seen_at.isoformat() if entry.last_seen_at else None
+                ),
+                "timeline": entry.timeline,
+            }
+            for entry in items
+        ],
+    }
 
 
 def _now_iso() -> str:

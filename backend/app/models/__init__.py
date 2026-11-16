@@ -3,7 +3,9 @@ from app.models.asset import Asset
 from app.models.base import Base
 from app.models.intel import (
     BreachIncident,
+    CorrelationEvent,
     Investigation,
+    InvestigationTimeline,
     IOC,
     NewsArticle,
     ThreatActor,
@@ -31,8 +33,10 @@ __all__ = [
     "Base",
     "BreachIncident",
     "CollectionJob",
+    "CorrelationEvent",
     "IntelligenceSource",
     "Investigation",
+    "InvestigationTimeline",
     "IOC",
     "NewsArticle",
     "OIDCIdentity",

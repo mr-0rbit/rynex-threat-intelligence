@@ -1,0 +1,21 @@
+# Renders the Prometheus/Alertmanager config files into ConfigMaps and applies
+# the accompanying workloads. Usage:
+#   kubectl apply -k deploy/monitoring
+#
+# The generated ConfigMaps carry a content hash, so a config change forces a
+# new Rollout of the consuming Deployment.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: rtip
+
+resources:
+  - workloads.yaml
+
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - prometheus.yml=prometheus.yaml
+      - rtip-alerts.yml=alerts.yaml
+  - name: alertmanager-config
+    files:
+      - alertmanager.yml=alertmanager.yaml

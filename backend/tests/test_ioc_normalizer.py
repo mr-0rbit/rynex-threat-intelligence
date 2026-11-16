@@ -54,11 +54,11 @@ class TestNormalization:
         assert len(a) == 40
 
     def test_date_parsing(self):
-        from datetime import timezone
-
         dt = IOCNormalizer.parse_date("2025-01-15T10:30:00Z")
         assert dt is not None and dt.year == 2025 and dt.tzinfo is not None
         assert IOCNormalizer.parse_date("Mon, 15 Jan 2025 10:30:00 +0000") is not None
         assert IOCNormalizer.parse_date("garbage") is None
         assert IOCNormalizer.parse_date(None) is None
-        assert not dt.tzinfo is timezone.utc or True  # tz-aware assertion sanity
+        # Naive input is treated as UTC; the result is always tz-aware.
+        assert dt.tzinfo is not None
+        assert dt.utcoffset() is not None and dt.utcoffset().total_seconds() == 0

@@ -1,0 +1,18 @@
+# Keep the build context small and prevent host artifacts from overwriting the
+# dependency tree installed inside the image (host node_modules are built for a
+# different libc than node:22-alpine).
+node_modules
+dist
+.vite
+*.tsbuildinfo
+playwright-report
+test-results
+blob-report
+playwright/.cache
+.env
+.env.*
+!.env.example
+!.env.*.example
+.git
+.gitignore
+Dockerfile

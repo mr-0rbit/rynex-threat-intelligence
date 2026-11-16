@@ -1,0 +1,19 @@
+# Build context hygiene: no local database, caches, or secrets.
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+rtip.db
+dump.rdb
+celerybeat-schedule*
+tests
+.env
+.env.*
+!.env.example
+!.env.*.example
+.git
+.gitignore
+Dockerfile

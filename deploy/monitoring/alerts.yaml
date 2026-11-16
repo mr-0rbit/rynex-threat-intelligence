@@ -1,0 +1,55 @@
+# Prometheus alert rules. Every RTIP metric below is emitted by app/api/v1/metrics.py.
+
+groups:
+  - name: rtip.rules
+    interval: 30s
+    rules:
+      - alert: RTIPBackendDown
+        expr: up{job="rtip-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: RTIP backend scrape is failing
+          description: Prometheus cannot scrape the RTIP backend metrics endpoint.
+
+      - alert: RTIPCollectionFailuresHigh
+        expr: sum(rtip_collection_job_status{status="failed"}) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: intel
+        annotations:
+          summary: High collection failure rate
+          description: More than 10 collection jobs failed during the last hour.
+
+      - alert: RTIPCollectionLag
+        expr: rtip_last_collection_timestamp_seconds == 0 or time() - rtip_last_collection_timestamp_seconds > 3600
+        for: 10m
+        labels:
+          severity: warning
+          team: intel
+        annotations:
+          summary: Collection lag detected
+          description: An enabled source has never succeeded or has not succeeded in over one hour.
+
+      - alert: RTIPSourceDegraded
+        expr: rtip_source_health{health=~"degraded|failing"} == 1
+        for: 15m
+        labels:
+          severity: warning
+          team: intel
+        annotations:
+          summary: Intelligence source is degraded
+          description: Source {{ $labels.slug }} has been degraded or failing for 15 minutes.
+
+      - alert: RTIPHighSeverityAlertVolume
+        expr: rtip_alerts_by_severity{severity=~"critical|high"} > 50
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: High volume of critical/high alerts
+          description: The organization has more than 50 open critical/high severity alerts.

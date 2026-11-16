@@ -2,12 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
 
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: backend
@@ -19,12 +20,19 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e . || pip install -r requirements.txt || true
-          # Fallback: install from pyproject dependencies if no requirements file
-          pip install fastapi uvicorn sqlalchemy aiosqlite alembic pydantic pydantic-settings \
-            celery redis httpx pytest pytest-asyncio bcrypt pyjwt ruff
+          pip install -e ".[dev]"
       - name: Lint (ruff)
         run: ruff check app tests
+      - name: Dependency audit (pip-audit)
+        run: pip-audit --skip-editable
+      - name: Migration upgrade and schema check
+        run: |
+          export DATABASE_URL="sqlite+aiosqlite:///$RUNNER_TEMP/rtip-migration-check.sqlite"
+          python -m alembic upgrade a1b2c3d4e5f6
+          python -m alembic upgrade head
+          python -m alembic check
+      - name: Validate deployment YAML and monitoring metrics
+        run: pytest tests/test_deploy_artifacts.py -q
       - name: Tests (pytest)
         run: pytest tests/ -q
         env:
@@ -32,6 +40,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -41,6 +50,60 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+      - name: Dependency audit (npm audit)
+        run: npm audit --audit-level=high
       - name: Type-check and build
         run: npm run build
+      - name: Validate nginx production config
+        run: |
+          docker run --rm \
+            -v "$PWD/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+            --add-host backend:127.0.0.1 \
+            nginx:1.30-alpine nginx -t
+      - name: Test (vitest)
+        run: npm run test:run
+
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t rtip-backend:ci backend
+      - name: Verify backend package installed
+        run: docker run --rm rtip-backend:ci python -c "import importlib.metadata as m; print(m.version('rtip-backend'))"
+      - name: Build frontend image
+        run: docker build -t rtip-frontend:ci frontend
+      - name: Build backup image
+        run: docker build -t rtip/backup:ci deploy/backup
+      - name: Verify backup image tooling
+        run: docker run --rm rtip/backup:ci -c 'pg_dump --version && aws --version'
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: pip install -e "../backend[dev]"
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Generate per-run E2E credentials
+        run: |
+          echo "E2E_EMAIL=e2e-admin@rtip.test" >> "$GITHUB_ENV"
+          echo "E2E_PASSWORD=E2e-$(openssl rand -hex 16)!9" >> "$GITHUB_ENV"
+          echo "E2E_DB_PATH=$RUNNER_TEMP/rtip-e2e.db" >> "$GITHUB_ENV"
+      - name: End-to-end tests
+        run: npm run test:e2e -- --project=chromium

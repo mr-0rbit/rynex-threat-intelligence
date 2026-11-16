@@ -1,0 +1,178 @@
+# RTIP PostgreSQL backup CronJob
+#
+# Hourly logical backups to S3-compatible object storage. The one-hour cadence
+# matches the documented RPO in deploy/DR_RUNBOOK.md. For a tighter RPO, enable
+# PostgreSQL WAL archiving/PITR in addition to this job.
+#
+# Build and push the backup image before applying:
+#   docker build -t registry.example.com/rtip/backup:1.0.0 deploy/backup
+#
+# Required pre-provisioned Secrets in the rtip namespace:
+#   rtip-secrets             key: DATABASE_URL
+#   rtip-backup-credentials  keys: S3_BUCKET, AWS_ACCESS_KEY_ID,
+#                                  AWS_SECRET_ACCESS_KEY
+#                            optional: S3_ENDPOINT, S3_PREFIX, S3_SSE
+#
+# Prefer workload identity / IRSA over static AWS keys where the platform
+# supports it; set automountServiceAccountToken and drop the key secrets
+# accordingly.
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rtip-postgres-backup
+  namespace: rtip
+  labels:
+    app.kubernetes.io/name: rtip-postgres-backup
+    app.kubernetes.io/part-of: rtip
+spec:
+  schedule: "0 * * * *"  # hourly, matching the 1-hour RPO
+  timeZone: "Etc/UTC"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: rtip-postgres-backup
+        spec:
+          serviceAccountName: rtip-backup
+          automountServiceAccountToken: false
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: registry.example.com/rtip/backup:1.0.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  umask 077
+                  : "${DATABASE_URL:?DATABASE_URL is required}"
+
+                  # libpq does not understand the SQLAlchemy driver suffix.
+                  DB_URL="${DATABASE_URL/postgresql+asyncpg:/postgresql:}"
+                  DB_URL="${DB_URL/postgresql+psycopg:/postgresql:}"
+
+                  TIMESTAMP=$(date -u +'%Y%m%d-%H%M%S')
+                  PREFIX="${S3_PREFIX:-rtip}"
+                  FILE="/tmp/rtip-${TIMESTAMP}.sql.gz"
+
+                  echo "Creating backup ${FILE}"
+                  pg_dump "$DB_URL" \
+                      --no-owner --no-privileges --clean --if-exists |
+                      gzip -9 > "$FILE"
+
+                  # Fail before upload if the archive is truncated/corrupt.
+                  gzip -t "$FILE"
+                  sha256sum "$FILE" > "${FILE}.sha256"
+
+                  ENDPOINT_ARGS=()
+                  if [ -n "${S3_ENDPOINT:-}" ]; then
+                      ENDPOINT_ARGS=(--endpoint-url "$S3_ENDPOINT")
+                  fi
+                  SSE_ARGS=()
+                  if [ -n "${S3_SSE:-}" ]; then
+                      SSE_ARGS=(--sse "$S3_SSE")
+                  fi
+
+                  DEST="s3://${S3_BUCKET}/${PREFIX}/$(basename "$FILE")"
+                  echo "Uploading ${DEST}"
+                  aws s3 cp "$FILE" "$DEST" "${ENDPOINT_ARGS[@]}" "${SSE_ARGS[@]}"
+                  aws s3 cp "${FILE}.sha256" "${DEST}.sha256" "${ENDPOINT_ARGS[@]}" "${SSE_ARGS[@]}"
+
+                  echo "Verifying upload"
+                  aws s3api head-object --bucket "$S3_BUCKET" \
+                      --key "${PREFIX}/$(basename "$FILE")" "${ENDPOINT_ARGS[@]}" >/dev/null
+
+                  echo "Backup complete"
+              env:
+                - name: HOME
+                  value: /tmp
+                - name: AWS_CLI_CACHE_DIR
+                  value: /tmp/.aws-cli
+                - name: AWS_PAGER
+                  value: ""
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: rtip-secrets
+                      key: DATABASE_URL
+                - name: S3_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: rtip-backup-credentials
+                      key: S3_BUCKET
+                - name: S3_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: rtip-backup-credentials
+                      key: S3_ENDPOINT
+                      optional: true
+                - name: S3_PREFIX
+                  valueFrom:
+                    secretKeyRef:
+                      name: rtip-backup-credentials
+                      key: S3_PREFIX
+                      optional: true
+                - name: S3_SSE
+                  valueFrom:
+                    secretKeyRef:
+                      name: rtip-backup-credentials
+                      key: S3_SSE
+                      optional: true
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: rtip-backup-credentials
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: rtip-backup-credentials
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: AWS_DEFAULT_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      name: rtip-backup-credentials
+                      key: AWS_DEFAULT_REGION
+                      optional: true
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "1000m"
+                  memory: "1Gi"
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 50Gi
+---
+# No RBAC is required: the Kubernetes API is not contacted. Kubelet resolves
+# secretKeyRef env vars independently of the ServiceAccount.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rtip-backup
+  namespace: rtip
+automountServiceAccountToken: false

@@ -1,5 +1,4 @@
 """Test fixtures. Runs against a throwaway SQLite database, never real intelligence."""
-
 import asyncio
 import inspect
 import os
@@ -10,11 +9,8 @@ import tempfile
 import pytest
 
 # Configure environment BEFORE importing the application
-TEST_DIR = pathlib.Path(tempfile.gettempdir()) / "rtip_test_data"
-TEST_DIR.mkdir(parents=True, exist_ok=True)
+TEST_DIR = pathlib.Path(tempfile.mkdtemp(prefix="rtip_test_data_"))
 TEST_DB = TEST_DIR / "rtip_test.db"
-if TEST_DB.exists():
-    TEST_DB.unlink()
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB}"
 os.environ["DEBUG"] = "false"
 os.environ["ENVIRONMENT"] = "development"

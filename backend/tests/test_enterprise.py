@@ -3,6 +3,7 @@ watchlist correlation, corroboration, new APIs, exports, ops endpoints."""
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+import uuid
 
 import pyotp
 import pytest
@@ -76,10 +77,13 @@ async def test_rate_limiter_unit():
 
     limiter = RateLimiter()
     limiter.enabled = True
-    await limiter.check("unit", max_attempts=2, window_seconds=60)
-    await limiter.check("unit", max_attempts=2, window_seconds=60)
+    # Unique key per run: a shared Redis instance keeps the window across test
+    # runs, which would make a fixed key order-dependent.
+    key = f"unit:{uuid.uuid4().hex}"
+    await limiter.check(key, max_attempts=2, window_seconds=60)
+    await limiter.check(key, max_attempts=2, window_seconds=60)
     with pytest.raises(HTTPException) as exc:
-        await limiter.check("unit", max_attempts=2, window_seconds=60)
+        await limiter.check(key, max_attempts=2, window_seconds=60)
     assert exc.value.status_code == 429
 
 
@@ -554,6 +558,86 @@ async def test_investigations_crud(client, auth_headers):
 
     resp = await client.delete(f"/api/v1/investigations/{inv_id}", headers=auth_headers)
     assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_investigation_timeline_generation_persists(client, auth_headers):
+    from app.core.database import AsyncSessionLocal
+    from app.models import IOC
+
+    entity = "timeline-evidence.example"
+    created = await client.post(
+        "/api/v1/investigations",
+        headers=auth_headers,
+        json={"title": "Timeline smoke test", "entity_refs": {"iocs": [entity]}},
+    )
+    assert created.status_code == 201, created.text
+    investigation_id = created.json()["id"]
+
+    async with AsyncSessionLocal() as db:
+        db.add(
+            IOC(
+                value=entity,
+                type="domain",
+                source_slug="test-fixture",
+                confidence=0.9,
+            )
+        )
+        await db.commit()
+
+    generated = await client.post(
+        f"/api/v1/investigations/{investigation_id}/timeline",
+        headers=auth_headers,
+    )
+    assert generated.status_code == 200, generated.text
+    assert generated.json()["generated"] == 1
+
+    # Re-running generation must not duplicate already-materialized events.
+    repeated = await client.post(
+        f"/api/v1/investigations/{investigation_id}/timeline",
+        headers=auth_headers,
+    )
+    assert repeated.status_code == 200, repeated.text
+    assert repeated.json()["generated"] == 0
+
+    timeline = await client.get(
+        f"/api/v1/investigations/{investigation_id}/timeline",
+        headers=auth_headers,
+    )
+    assert timeline.status_code == 200, timeline.text
+    assert len(timeline.json()["items"]) == 1
+    assert timeline.json()["items"][0]["entity_key"] == entity
+
+    correlations = await client.get(
+        "/api/v1/correlations",
+        headers=auth_headers,
+        params={"entity_type": "iocs", "min_confidence": 0.1},
+    )
+    assert correlations.status_code == 200, correlations.text
+    body = correlations.json()
+    assert body["total"] >= 1
+    matching = [item for item in body["items"] if item["entity_key"] == entity]
+    assert matching and matching[0]["source_count"] == 1
+    assert matching[0]["first_seen_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_service_api_key_authenticates_as_bearer(client, auth_headers):
+    created = await client.post(
+        "/api/v1/admin/api-keys",
+        headers=auth_headers,
+        json={"name": "prometheus-test-key"},
+    )
+    assert created.status_code == 201, created.text
+    api_key = created.json()["api_key"]
+
+    response = await client.get(
+        "/api/v1/metrics",
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    assert response.status_code == 200, response.text
+    assert "rtip_records_total" in response.text
+    assert "rtip_last_collection_timestamp_seconds" in response.text
 
 
 @pytest.mark.asyncio

@@ -162,3 +162,62 @@ class Investigation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     confidence: Mapped[float | None] = mapped_column(Float)
     confidence_reasons: Mapped[dict | None] = mapped_column(JSON)
+
+
+class CorrelationEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Cross-source entity correlation.
+
+    One row per (organization, entity_key, entity_type) — the canonical record
+    that the same real-world entity is reported by multiple sources.
+    """
+
+    __tablename__ = "correlation_events"
+    __table_args__ = (
+        Index("ix_correlation_events_org_entity", "organization_id", "entity_key"),
+        Index(
+            "ix_correlation_events_org_type",
+            "organization_id",
+            "entity_type",
+            "correlation_type",
+        ),
+    )
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    entity_type: Mapped[str] = mapped_column(String(32), nullable=False)  # ioc|breach|cve|actor|asset
+    correlation_type: Mapped[str] = mapped_column(String(32), nullable=False)  # same_entity|single_source|co_occurrence|attribution
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    source_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sources: Mapped[list | None] = mapped_column(JSON)
+    related_alert_ids: Mapped[list | None] = mapped_column(JSON)
+    related_breach_ids: Mapped[list | None] = mapped_column(JSON)
+    related_cve_ids: Mapped[list | None] = mapped_column(JSON)
+    first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    timeline: Mapped[list | None] = mapped_column(JSON)
+
+
+class InvestigationTimeline(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Chronological event log attached to an investigation."""
+
+    __tablename__ = "investigation_timelines"
+    __table_args__ = (
+        Index("ix_investigation_timelines_inv", "investigation_id", "occurred_at"),
+        Index("ix_investigation_timelines_org", "organization_id", "occurred_at"),
+    )
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    investigation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_key: Mapped[str | None] = mapped_column(String(255))
+    entity_type: Mapped[str | None] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    detail: Mapped[str | None] = mapped_column(Text)
+    evidence_refs: Mapped[list | None] = mapped_column(JSON)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

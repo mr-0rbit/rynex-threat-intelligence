@@ -5,10 +5,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Copy the package before installing so the wheel is not empty. Installing the
+# project (rather than only its dependencies) keeps the installed metadata and
+# console entry points consistent with what CI tests.
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir .
-
 COPY app ./app
+RUN pip install --no-cache-dir . && pip check
+
 COPY alembic ./alembic
 COPY alembic.ini ./
 

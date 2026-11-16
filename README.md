@@ -437,6 +437,9 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) § Security.
   <tr><td><a href="docs/ARCHITECTURE.md"><code>docs/ARCHITECTURE.md</code></a></td><td>System design and security model</td></tr>
   <tr><td><a href="docs/SOURCES.md"><code>docs/SOURCES.md</code></a></td><td>Source catalog, terms and commercial-use status</td></tr>
   <tr><td><a href="docs/deploy-secrets.md"><code>docs/deploy-secrets.md</code></a></td><td>Production secret provisioning and deployment guidance</td></tr>
+  <tr><td><a href="docs/testing.md"><code>docs/testing.md</code></a></td><td>Backend, frontend, migration and Playwright test workflows</td></tr>
+  <tr><td><a href="deploy/DR_RUNBOOK.md"><code>deploy/DR_RUNBOOK.md</code></a></td><td>Backup schedule, restore procedure and DR drills</td></tr>
+  <tr><td><a href="deploy/monitoring/README.md"><code>deploy/monitoring/README.md</code></a></td><td>Rendering and deploying Prometheus/Alertmanager with Kustomize</td></tr>
   <tr><td><code>http://localhost:8000/api/docs</code></td><td>Interactive OpenAPI docs (when running)</td></tr>
 </table>
 

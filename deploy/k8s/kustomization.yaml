@@ -1,0 +1,26 @@
+# Deploy the application workloads with image tags pinned here, in one place:
+#   kubectl apply -k deploy/k8s
+#
+# Override `newTag` per environment (or run `kustomize edit set image`). Never
+# deploy `:latest`: the workloads use `imagePullPolicy: IfNotPresent`, so a
+# mutable tag can silently keep an old image running after a "rollout".
+#
+# Applied separately, because they need their own prerequisites:
+#   kubectl apply -f deploy/k8s/backup-cronjob.yaml   # published backup image
+#   kubectl apply -k deploy/monitoring                # monitoring Secrets
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: rtip
+
+resources:
+  - namespace.yaml
+  - configmap-and-secrets.yaml
+  - backend-deployment.yaml
+  - workers-and-ingress.yaml
+
+images:
+  - name: rtip-backend
+    newTag: 1.0.0
+  - name: rtip-frontend
+    newTag: 1.0.0

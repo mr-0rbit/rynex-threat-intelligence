@@ -21,20 +21,26 @@ def _hash_api_key(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-async def _resolve_api_token(request: Request, db: AsyncSession) -> User | None:
-    raw = request.headers.get("X-API-Key")
+async def _resolve_api_token(
+    request: Request, db: AsyncSession, bearer_token: str | None = None
+) -> User | None:
+    # API keys may be sent in Authorization: Bearer for integrations (such as
+    # Prometheus) that cannot set a custom X-API-Key header. A Bearer value that
+    # is not an API key may still be a JWT, so fall through to JWT validation.
+    header_key = request.headers.get("X-API-Key")
+    raw = header_key or bearer_token
     if not raw:
         return None
     token = (
         await db.execute(select(ApiToken).where(ApiToken.key_hash == _hash_api_key(raw)))
     ).scalar_one_or_none()
+    if token is None:
+        if header_key:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired API key")
+        return None
     now = datetime.now(UTC)
-    expires_at = ensure_aware(token.expires_at) if token else None
-    if (
-        token is None
-        or token.revoked_at is not None
-        or (expires_at and expires_at < now)
-    ):
+    expires_at = ensure_aware(token.expires_at)
+    if token.revoked_at is not None or (expires_at and expires_at < now):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired API key")
     owner = await db.get(User, token.owner_user_id)
     if owner is None or not owner.is_active:
@@ -49,7 +55,11 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> User:
     # 1) Service API key (machine access: SOAR/SIEM pulls, integrations)
-    user = await _resolve_api_token(request, db)
+    user = await _resolve_api_token(
+        request,
+        db,
+        credentials.credentials if credentials is not None else None,
+    )
     if user is None:
         if credentials is None:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
